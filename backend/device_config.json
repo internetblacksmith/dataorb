@@ -1,0 +1,32 @@
+{
+  "device": {
+    "name": "PostHog Pi Dashboard",
+    "location": "Office",
+    "timezone": "UTC",
+    "last_configured": "2025-07-07T23:25:08.248212"
+  },
+  "posthog": {
+    "api_key": "",
+    "project_id": "",
+    "host": "https://app.posthog.com"
+  },
+  "display": {
+    "refresh_interval": 30,
+    "theme": "dark",
+    "brightness": 100,
+    "rotation": 0,
+    "screensaver_timeout": 0
+  },
+  "network": {
+    "wifi_ssid": "",
+    "wifi_password": "",
+    "static_ip": "",
+    "use_dhcp": true
+  },
+  "advanced": {
+    "debug_mode": false,
+    "log_level": "INFO",
+    "auto_update": true,
+    "backup_enabled": true
+  }
+}

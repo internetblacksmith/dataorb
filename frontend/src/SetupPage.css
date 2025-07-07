@@ -1,0 +1,362 @@
+/* Setup Page Styles */
+.setup-page {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #822802 0%, #444444 100%);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.setup-container {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 20px;
+  padding: 40px;
+  max-width: 500px;
+  width: 100%;
+  color: white;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+}
+
+.setup-content {
+  text-align: center;
+}
+
+.setup-header {
+  margin-bottom: 30px;
+}
+
+.setup-logo {
+  margin-bottom: 20px;
+}
+
+.logo-circle {
+  width: 80px;
+  height: 80px;
+  background: linear-gradient(45deg, #f44c04, #6e8cf9);
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  margin: 0 auto 20px;
+  box-shadow: 0 0 20px rgba(244, 76, 4, 0.5);
+}
+
+.logo-text {
+  font-size: 14px;
+  font-weight: bold;
+  color: white;
+  line-height: 1;
+}
+
+.logo-subtitle {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.8);
+  line-height: 1;
+}
+
+.setup-header h1 {
+  font-size: 28px;
+  margin: 0 0 10px 0;
+  color: white;
+}
+
+.setup-header p {
+  font-size: 16px;
+  color: rgba(255, 255, 255, 0.8);
+  margin: 0;
+}
+
+.setup-status {
+  margin: 30px 0;
+}
+
+.status-card {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 15px;
+  padding: 20px;
+  margin: 15px 0;
+  display: flex;
+  align-items: center;
+  text-align: left;
+}
+
+.status-card.ap-active {
+  border-color: #6e8cf9;
+  background: rgba(110, 140, 249, 0.1);
+}
+
+.status-card.connected {
+  border-color: #4ade80;
+  background: rgba(74, 222, 128, 0.1);
+}
+
+.status-card.disconnected {
+  border-color: #f87171;
+  background: rgba(248, 113, 113, 0.1);
+}
+
+.status-icon {
+  font-size: 24px;
+  margin-right: 15px;
+  flex-shrink: 0;
+}
+
+.status-info h3 {
+  margin: 0 0 5px 0;
+  font-size: 16px;
+  color: white;
+}
+
+.status-info p {
+  margin: 2px 0;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.setup-actions {
+  margin: 30px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.setup-button {
+  padding: 15px 30px;
+  border: none;
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  width: 100%;
+}
+
+.setup-button.primary {
+  background: linear-gradient(45deg, #f44c04, #6e8cf9);
+  color: white;
+}
+
+.setup-button.primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(244, 76, 4, 0.3);
+}
+
+.setup-button.secondary {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.setup-button.secondary:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.setup-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.setup-instructions {
+  margin-top: 30px;
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 15px;
+  text-align: left;
+}
+
+.setup-instructions h3 {
+  margin: 0 0 15px 0;
+  color: #f44c04;
+  font-size: 18px;
+}
+
+.setup-instructions ol {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.setup-instructions li {
+  margin: 10px 0;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.setup-instructions strong {
+  color: #6e8cf9;
+}
+
+/* Networks List */
+.networks-list {
+  max-height: 300px;
+  overflow-y: auto;
+  margin: 20px 0;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.network-item {
+  padding: 15px;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  transition: background 0.3s ease;
+}
+
+.network-item:last-child {
+  border-bottom: none;
+}
+
+.network-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.network-item.selected {
+  background: rgba(110, 140, 249, 0.2);
+  border-left: 4px solid #6e8cf9;
+}
+
+.network-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.network-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: white;
+}
+
+.network-details {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.network-quality {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.network-security {
+  font-size: 14px;
+}
+
+/* Password Section */
+.password-section {
+  margin: 20px 0;
+  text-align: left;
+}
+
+.password-section label {
+  display: block;
+  margin-bottom: 10px;
+  font-weight: 600;
+  color: white;
+}
+
+.password-input {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  font-size: 16px;
+  box-sizing: border-box;
+}
+
+.password-input::placeholder {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.password-input:focus {
+  outline: none;
+  border-color: #6e8cf9;
+  box-shadow: 0 0 0 2px rgba(110, 140, 249, 0.2);
+}
+
+/* Connecting Animation */
+.connecting-animation {
+  margin: 40px 0;
+}
+
+.spinner {
+  width: 50px;
+  height: 50px;
+  border: 4px solid rgba(255, 255, 255, 0.3);
+  border-top: 4px solid #f44c04;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 20px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Success Icon */
+.success-icon {
+  font-size: 80px;
+  margin: 20px 0;
+  color: #4ade80;
+}
+
+.success-info {
+  margin: 30px 0;
+}
+
+.success-info p {
+  margin: 10px 0;
+  font-size: 16px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* Setup Message */
+.setup-message {
+  margin-top: 20px;
+  padding: 15px;
+  border-radius: 10px;
+  background: rgba(110, 140, 249, 0.1);
+  border: 1px solid rgba(110, 140, 249, 0.3);
+  color: #6e8cf9;
+  font-weight: 500;
+}
+
+.setup-message.error {
+  background: rgba(248, 113, 113, 0.1);
+  border-color: rgba(248, 113, 113, 0.3);
+  color: #f87171;
+}
+
+/* Responsive Design */
+@media (max-width: 480px) {
+  .setup-container {
+    padding: 20px;
+    margin: 10px;
+  }
+  
+  .setup-header h1 {
+    font-size: 24px;
+  }
+  
+  .logo-circle {
+    width: 60px;
+    height: 60px;
+  }
+  
+  .logo-text {
+    font-size: 12px;
+  }
+  
+  .logo-subtitle {
+    font-size: 8px;
+  }
+}
