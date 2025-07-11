@@ -326,3 +326,35 @@ select option {
   background: #444444;
   color: white;
 }
+
+/* Metric Configuration Styles */
+.metric-config-group {
+  margin: 20px 0;
+  padding: 15px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  border-left: 4px solid #f44c04;
+}
+
+.metric-config-group h4 {
+  margin: 0 0 15px 0;
+  color: #f44c04;
+  font-size: 1.1em;
+  font-weight: 600;
+}
+
+.metric-config-group .form-group {
+  margin-bottom: 12px;
+}
+
+.metric-config-group .form-group:last-child {
+  margin-bottom: 0;
+}
+
+.metric-description {
+  display: block;
+  color: rgba(255, 255, 255, 0.7);
+  font-style: italic;
+  margin-top: 5px;
+  font-size: 0.85em;
+}

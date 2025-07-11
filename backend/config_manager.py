@@ -23,7 +23,12 @@ class ConfigManager:
                 "theme": "dark",
                 "brightness": 100,
                 "rotation": 0,
-                "screensaver_timeout": 0
+                "screensaver_timeout": 0,
+                "metrics": {
+                    "top": {"type": "events_24h", "label": "Events", "enabled": True},
+                    "left": {"type": "unique_users_24h", "label": "Users", "enabled": True},
+                    "right": {"type": "page_views_24h", "label": "Views", "enabled": True}
+                }
             },
             "network": {
                 "wifi_ssid": "",
@@ -36,6 +41,14 @@ class ConfigManager:
                 "log_level": "INFO",
                 "auto_update": True,
                 "backup_enabled": True
+            },
+            "ota": {
+                "enabled": True,
+                "branch": "main",
+                "check_on_boot": True,
+                "auto_pull": True,
+                "last_update": None,
+                "last_check": None
             }
         }
         self.load_config()

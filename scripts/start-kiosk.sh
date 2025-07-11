@@ -68,7 +68,7 @@ chromium-browser \
   --window-position=0,0 \
   --window-size=480,480 \
   --user-data-dir=/tmp/chrome-kiosk \
-  http://localhost:5000/setup
+  http://localhost:5000
 
 # Cleanup on exit
 trap "kill $APP_PID" EXIT

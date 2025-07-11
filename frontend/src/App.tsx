@@ -5,12 +5,26 @@ interface PostHogStats {
   events_24h: number;
   unique_users_24h: number;
   page_views_24h: number;
+  custom_events_24h: number;
+  sessions_24h: number;
+  events_1h: number;
+  avg_events_per_user: number;
+  recent_events: any[];
   last_updated: string;
   error?: string;
 }
 
+interface DisplayConfig {
+  metrics: {
+    top: { type: string; label: string; enabled: boolean };
+    left: { type: string; label: string; enabled: boolean };
+    right: { type: string; label: string; enabled: boolean };
+  };
+}
+
 const App: React.FC = () => {
   const [stats, setStats] = useState<PostHogStats | null>(null);
+  const [displayConfig, setDisplayConfig] = useState<DisplayConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,8 +47,19 @@ const App: React.FC = () => {
     }
   };
 
+  const fetchDisplayConfig = async () => {
+    try {
+      const response = await fetch('/api/admin/config');
+      const data = await response.json();
+      setDisplayConfig({ metrics: data.display.metrics });
+    } catch (err) {
+      console.error('Error fetching display config:', err);
+    }
+  };
+
   useEffect(() => {
     fetchStats();
+    fetchDisplayConfig();
     const interval = setInterval(fetchStats, 30000); // Refresh every 30 seconds
     return () => clearInterval(interval);
   }, []);
@@ -46,6 +71,11 @@ const App: React.FC = () => {
     } catch {
       return 'N/A';
     }
+  };
+
+  const getMetricValue = (metricType: string): string | number => {
+    if (!stats) return 0;
+    return (stats as any)[metricType] ?? 0;
   };
 
   if (loading) {
@@ -80,20 +110,26 @@ const App: React.FC = () => {
 
         {/* Circular stats layout */}
         <div className="circular-stats">
-          <div className="stat-circle stat-top">
-            <div className="stat-value">{stats?.events_24h || 0}</div>
-            <div className="stat-label">Events</div>
-          </div>
+          {displayConfig?.metrics.top.enabled && (
+            <div className="stat-circle stat-top">
+              <div className="stat-value">{getMetricValue(displayConfig.metrics.top.type)}</div>
+              <div className="stat-label">{displayConfig.metrics.top.label}</div>
+            </div>
+          )}
 
-          <div className="stat-circle stat-left">
-            <div className="stat-value">{stats?.unique_users_24h || 0}</div>
-            <div className="stat-label">Users</div>
-          </div>
+          {displayConfig?.metrics.left.enabled && (
+            <div className="stat-circle stat-left">
+              <div className="stat-value">{getMetricValue(displayConfig.metrics.left.type)}</div>
+              <div className="stat-label">{displayConfig.metrics.left.label}</div>
+            </div>
+          )}
 
-          <div className="stat-circle stat-right">
-            <div className="stat-value">{stats?.page_views_24h || 0}</div>
-            <div className="stat-label">Views</div>
-          </div>
+          {displayConfig?.metrics.right.enabled && (
+            <div className="stat-circle stat-right">
+              <div className="stat-value">{getMetricValue(displayConfig.metrics.right.type)}</div>
+              <div className="stat-label">{displayConfig.metrics.right.label}</div>
+            </div>
+          )}
         </div>
 
         {/* Status and time at bottom */}

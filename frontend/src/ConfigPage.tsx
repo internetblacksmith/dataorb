@@ -18,6 +18,11 @@ interface DeviceConfig {
     brightness: number;
     rotation: number;
     screensaver_timeout: number;
+    metrics: {
+      top: { type: string; label: string; enabled: boolean };
+      left: { type: string; label: string; enabled: boolean };
+      right: { type: string; label: string; enabled: boolean };
+    };
   };
   network: {
     wifi_ssid: string;
@@ -30,6 +35,21 @@ interface DeviceConfig {
     log_level: string;
     auto_update: boolean;
     backup_enabled: boolean;
+  };
+  ota: {
+    enabled: boolean;
+    branch: string;
+    check_on_boot: boolean;
+    auto_pull: boolean;
+    last_update: string | null;
+    last_check: string | null;
+  };
+}
+
+interface AvailableMetrics {
+  [key: string]: {
+    label: string;
+    description: string;
   };
 }
 
@@ -58,20 +78,39 @@ interface DeviceInfo {
   };
 }
 
+interface OTAStatus {
+  enabled: boolean;
+  current_branch: string;
+  current_commit: string;
+  target_branch: string;
+  available_branches: string[];
+  auto_pull: boolean;
+  check_on_boot: boolean;
+  last_update: string | null;
+  last_check: string | null;
+  repo_path: string;
+}
+
 const ConfigPage: React.FC = () => {
   const [config, setConfig] = useState<DeviceConfig | null>(null);
   const [deviceInfo, setDeviceInfo] = useState<DeviceInfo | null>(null);
+  const [otaStatus, setOtaStatus] = useState<OTAStatus | null>(null);
+  const [availableMetrics, setAvailableMetrics] = useState<AvailableMetrics>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState('device');
   const [message, setMessage] = useState<{type: 'success' | 'error'; text: string} | null>(null);
   const [testingConnection, setTestingConnection] = useState(false);
+  const [checkingUpdates, setCheckingUpdates] = useState(false);
+  const [updating, setUpdating] = useState(false);
 
   const API_BASE = process.env.REACT_APP_API_URL || '';
 
   useEffect(() => {
     loadConfig();
     loadDeviceInfo();
+    loadOTAStatus();
+    loadAvailableMetrics();
   }, []);
 
   const loadConfig = async () => {
@@ -93,6 +132,26 @@ const ConfigPage: React.FC = () => {
       setDeviceInfo(data);
     } catch (error) {
       console.error('Failed to load device info:', error);
+    }
+  };
+
+  const loadOTAStatus = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/api/admin/ota/status`);
+      const data = await response.json();
+      setOtaStatus(data);
+    } catch (error) {
+      console.error('Failed to load OTA status:', error);
+    }
+  };
+
+  const loadAvailableMetrics = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/api/metrics/available`);
+      const data = await response.json();
+      setAvailableMetrics(data);
+    } catch (error) {
+      console.error('Failed to load available metrics:', error);
     }
   };
 
@@ -145,6 +204,7 @@ const ConfigPage: React.FC = () => {
     }
   };
 
+
   const resetConfig = async () => {
     if (!window.confirm('Are you sure you want to reset all settings to defaults?')) return;
     
@@ -162,6 +222,77 @@ const ConfigPage: React.FC = () => {
       }
     } catch (error) {
       showMessage('error', 'Failed to reset configuration');
+    }
+  };
+
+  const checkForUpdates = async () => {
+    setCheckingUpdates(true);
+    try {
+      const response = await fetch(`${API_BASE}/api/admin/ota/check`);
+      const result = await response.json();
+      
+      if (result.error) {
+        showMessage('error', result.error);
+      } else if (result.updates_available) {
+        showMessage('success', `${result.commits_behind} updates available`);
+      } else {
+        showMessage('success', 'No updates available');
+      }
+      
+      loadOTAStatus();
+    } catch (error) {
+      showMessage('error', 'Failed to check for updates');
+    } finally {
+      setCheckingUpdates(false);
+    }
+  };
+
+  const updateSystem = async () => {
+    if (!window.confirm('Are you sure you want to update the system? This will restart the application.')) return;
+    
+    setUpdating(true);
+    try {
+      const response = await fetch(`${API_BASE}/api/admin/ota/update`, {
+        method: 'POST'
+      });
+      
+      const result = await response.json();
+      if (result.success) {
+        showMessage('success', 'System updated successfully');
+        loadOTAStatus();
+      } else {
+        showMessage('error', result.error || 'Failed to update system');
+      }
+    } catch (error) {
+      showMessage('error', 'Failed to update system');
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const switchBranch = async (branch: string) => {
+    if (!window.confirm(`Are you sure you want to switch to branch ${branch}? This will restart the application.`)) return;
+    
+    setUpdating(true);
+    try {
+      const response = await fetch(`${API_BASE}/api/admin/ota/switch-branch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ branch })
+      });
+      
+      const result = await response.json();
+      if (result.success) {
+        showMessage('success', result.message);
+        loadOTAStatus();
+        loadConfig();
+      } else {
+        showMessage('error', result.error || 'Failed to switch branch');
+      }
+    } catch (error) {
+      showMessage('error', 'Failed to switch branch');
+    } finally {
+      setUpdating(false);
     }
   };
 
@@ -188,6 +319,7 @@ const ConfigPage: React.FC = () => {
     { id: 'display', label: 'Display', icon: '🖥️' },
     { id: 'network', label: 'Network', icon: '🌐' },
     { id: 'advanced', label: 'Advanced', icon: '⚙️' },
+    { id: 'ota', label: 'Updates', icon: '🔄' },
     { id: 'info', label: 'System Info', icon: 'ℹ️' }
   ];
 
@@ -382,6 +514,71 @@ const ConfigPage: React.FC = () => {
                   <option value="270">270°</option>
                 </select>
               </div>
+              
+              <h3>Dashboard Metrics</h3>
+              <p>Configure which metrics are displayed on the dashboard</p>
+              
+              {['top', 'left', 'right'].map((position) => (
+                <div key={position} className="metric-config-group">
+                  <h4>{position.charAt(0).toUpperCase() + position.slice(1)} Position</h4>
+                  <div className="form-group">
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={config.display.metrics[position as keyof typeof config.display.metrics].enabled}
+                        onChange={(e) => {
+                          const newMetrics = { ...config.display.metrics };
+                          newMetrics[position as keyof typeof newMetrics].enabled = e.target.checked;
+                          updateConfig('display', 'metrics', newMetrics);
+                        }}
+                      />
+                      Enable metric
+                    </label>
+                  </div>
+                  {config.display.metrics[position as keyof typeof config.display.metrics].enabled && (
+                    <>
+                      <div className="form-group">
+                        <label>Metric Type</label>
+                        <select
+                          value={config.display.metrics[position as keyof typeof config.display.metrics].type}
+                          onChange={(e) => {
+                            const newMetrics = { ...config.display.metrics };
+                            const selectedMetric = availableMetrics[e.target.value];
+                            newMetrics[position as keyof typeof newMetrics] = {
+                              type: e.target.value,
+                              label: selectedMetric?.label || e.target.value,
+                              enabled: true
+                            };
+                            updateConfig('display', 'metrics', newMetrics);
+                          }}
+                        >
+                          {Object.entries(availableMetrics).map(([key, metric]) => (
+                            <option key={key} value={key}>
+                              {metric.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="form-group">
+                        <label>Display Label</label>
+                        <input
+                          type="text"
+                          value={config.display.metrics[position as keyof typeof config.display.metrics].label}
+                          onChange={(e) => {
+                            const newMetrics = { ...config.display.metrics };
+                            newMetrics[position as keyof typeof newMetrics].label = e.target.value;
+                            updateConfig('display', 'metrics', newMetrics);
+                          }}
+                          placeholder="Custom label"
+                        />
+                      </div>
+                      <small className="metric-description">
+                        {availableMetrics[config.display.metrics[position as keyof typeof config.display.metrics].type]?.description}
+                      </small>
+                    </>
+                  )}
+                </div>
+              ))}
             </div>
           )}
 
@@ -474,6 +671,122 @@ const ConfigPage: React.FC = () => {
                   />
                   Enable Backups
                 </label>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'ota' && (
+            <div className="config-section">
+              <h2>Over-The-Air Updates</h2>
+              
+              {otaStatus && (
+                <div className="ota-status">
+                  <div className="info-grid">
+                    <div className="info-card">
+                      <h3>Current Status</h3>
+                      <p><strong>Branch:</strong> {otaStatus.current_branch}</p>
+                      <p><strong>Commit:</strong> {otaStatus.current_commit}</p>
+                      <p><strong>Last Check:</strong> {
+                        otaStatus.last_check 
+                          ? new Date(otaStatus.last_check).toLocaleString()
+                          : 'Never'
+                      }</p>
+                      <p><strong>Last Update:</strong> {
+                        otaStatus.last_update 
+                          ? new Date(otaStatus.last_update).toLocaleString()
+                          : 'Never'
+                      }</p>
+                    </div>
+                    
+                    <div className="info-card">
+                      <h3>Actions</h3>
+                      <div className="button-group">
+                        <button 
+                          onClick={checkForUpdates}
+                          disabled={checkingUpdates}
+                          className="btn-secondary"
+                        >
+                          {checkingUpdates ? '🔄 Checking...' : '🔍 Check for Updates'}
+                        </button>
+                        <button 
+                          onClick={updateSystem}
+                          disabled={updating}
+                          className="btn-primary"
+                        >
+                          {updating ? '🔄 Updating...' : '⬆️ Update System'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="form-group">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={config?.ota?.enabled || false}
+                    onChange={(e) => updateConfig('ota', 'enabled', e.target.checked)}
+                  />
+                  Enable OTA Updates
+                </label>
+              </div>
+
+              <div className="form-group">
+                <label>Target Branch</label>
+                <select
+                  value={config?.ota?.branch || 'main'}
+                  onChange={(e) => {
+                    updateConfig('ota', 'branch', e.target.value);
+                    if (e.target.value !== otaStatus?.current_branch) {
+                      switchBranch(e.target.value);
+                    }
+                  }}
+                  disabled={updating}
+                >
+                  {otaStatus?.available_branches?.map(branch => (
+                    <option key={branch} value={branch}>{branch}</option>
+                  )) || (
+                    <>
+                      <option value="main">main</option>
+                      <option value="dev">dev</option>
+                      <option value="canary">canary</option>
+                    </>
+                  )}
+                </select>
+                <small>Current: {otaStatus?.current_branch || 'unknown'}</small>
+              </div>
+
+              <div className="form-group">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={config?.ota?.check_on_boot || false}
+                    onChange={(e) => updateConfig('ota', 'check_on_boot', e.target.checked)}
+                  />
+                  Check for updates on boot
+                </label>
+              </div>
+
+              <div className="form-group">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={config?.ota?.auto_pull || false}
+                    onChange={(e) => updateConfig('ota', 'auto_pull', e.target.checked)}
+                  />
+                  Automatically pull updates
+                </label>
+              </div>
+
+              <div className="form-group">
+                <label>Repository Path</label>
+                <input
+                  type="text"
+                  value={otaStatus?.repo_path || ''}
+                  readOnly
+                  className="readonly"
+                />
               </div>
             </div>
           )}

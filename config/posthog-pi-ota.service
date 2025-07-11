@@ -1,0 +1,17 @@
+[Unit]
+Description=PostHog Pi OTA Update Service
+After=network.target
+Wants=network.target
+
+[Service]
+Type=oneshot
+User=pi
+Group=pi
+WorkingDirectory=/home/pi/posthog_pi
+ExecStart=/home/pi/posthog_pi/scripts/boot-update.py
+StandardOutput=journal
+StandardError=journal
+TimeoutSec=300
+
+[Install]
+WantedBy=multi-user.target

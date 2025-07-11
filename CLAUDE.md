@@ -13,6 +13,7 @@ PostHog Pi is an IoT dashboard project that displays PostHog analytics on a Rasp
 - **Frontend**: React TypeScript app optimized for 480x480 round display
 - **Display**: Chrome kiosk mode with systemd service auto-start
 - **Hardware**: Raspberry Pi Zero W + HyperPixel Round display
+- **OTA Updates**: Git-based over-the-air update system with branch management
 
 ## Common Development Commands
 
@@ -61,21 +62,37 @@ curl http://localhost:5000/api/health
 
 # Visit complete app
 open http://localhost:5000
+
+# Test OTA updates
+curl http://localhost:5000/api/admin/ota/status
+curl http://localhost:5000/api/admin/ota/check
 ```
 
 ## Key Configuration Files
 
 - `backend/.env` - PostHog API credentials (copy from .env.example)
+- `backend/device_config.json` - Device configuration including OTA settings
 - `config/hyperpixel-setup.sh` - Display hardware configuration
 - `scripts/start-kiosk.sh` - Kiosk mode startup script
+- `scripts/install-pi.sh` - Complete Pi installation script
+- `scripts/boot-update.py` - OTA update script for boot-time updates
 - `/etc/systemd/system/posthog-display.service` - Auto-start service
+- `/etc/systemd/system/posthog-pi-ota.service` - OTA update service
 
 ## Deployment Process
 
+### Easy Installation (Recommended)
+```bash
+# One-command installation on fresh Raspberry Pi
+curl -sSL https://raw.githubusercontent.com/jabawack81/posthog_pi/main/scripts/install-pi.sh | bash
+```
+
+### Manual Installation
 1. Install dependencies: `sudo ./scripts/install-deps.sh`
 2. Configure PostHog API: Edit `backend/.env`
 3. Set up display: `sudo ./config/hyperpixel-setup.sh`
-4. Reboot system for kiosk mode auto-start
+4. Install OTA service: `sudo ./scripts/install-ota-service.sh`
+5. Reboot system for kiosk mode auto-start
 
 ## PostHog Integration
 
@@ -87,12 +104,39 @@ The Flask API integrates with PostHog's REST API to fetch:
 
 API endpoints are cached for 5 minutes to reduce API calls.
 
+## Dashboard Metrics Configuration
+
+The dashboard displays configurable PostHog metrics in three circular positions:
+
+### Available Metrics
+- **Events (24h)**: Total events in last 24 hours
+- **Users (24h)**: Unique users in last 24 hours  
+- **Page Views (24h)**: Page view events in last 24 hours
+- **Custom Events (24h)**: Non-pageview events in last 24 hours
+- **Sessions (24h)**: Unique sessions in last 24 hours
+- **Events (1h)**: Events in last hour
+- **Avg Events/User**: Average events per user (24h)
+
+### Configuration
+- Access via `/config` → "Display" tab → "Dashboard Metrics"
+- Configure each position (top, left, right) independently
+- Enable/disable metrics per position
+- Choose metric type from dropdown
+- Customize display labels
+- Real-time preview of changes
+
+### Layout Positions
+```
+    [TOP]
+[LEFT] 🟡 [RIGHT]
+```
+
 ## Display Optimization
 
 The React frontend is specifically optimized for:
 - 480x480 circular display
 - Dark theme for better visibility
-- Responsive grid layout
+- Responsive grid layout with configurable metrics
 - Auto-refresh every 30 seconds
 - Error handling and loading states
 
@@ -102,6 +146,39 @@ The React frontend is specifically optimized for:
 - Display rotation configured in /boot/config.txt
 - Chrome kiosk mode with window size 480x480
 - Systemd service handles auto-start and crash recovery
+
+## OTA Update System
+
+The project includes a comprehensive over-the-air update system:
+
+### Branch Strategy
+- **main**: Stable production releases
+- **dev**: Development branch with latest features  
+- **canary**: Experimental builds for testing
+
+### Features
+- **Web Interface**: Configure updates via `/config` → "Updates" tab
+- **API Endpoints**: Programmatic control via REST API
+- **Boot Updates**: Automatic update checks on system boot
+- **Backup System**: Automatic backups before updates with rollback capability
+- **Branch Switching**: Easy switching between main/dev/canary branches
+- **Status Monitoring**: Real-time update status and history
+
+### API Endpoints
+- `GET /api/admin/ota/status` - Current OTA status
+- `GET /api/admin/ota/check` - Check for updates
+- `POST /api/admin/ota/update` - Apply updates
+- `POST /api/admin/ota/switch-branch` - Switch branches
+- `GET /api/admin/ota/backups` - List backups
+- `POST /api/admin/ota/rollback` - Rollback to backup
+
+### Configuration
+OTA settings are stored in `device_config.json`:
+- `enabled`: Enable/disable OTA system
+- `branch`: Target branch (main/dev/canary)
+- `check_on_boot`: Auto-check on boot
+- `auto_pull`: Auto-apply updates
+- `last_update`: Last update timestamp
 
 ## Project Context Reference
 
@@ -121,6 +198,7 @@ The project evolved through these key phases:
 5. **Server Integration** - Single Flask server serving both API and React
 6. **IoT Configuration** - Web-based device management interface
 7. **WiFi Access Point** - First-boot network setup and management
+8. **OTA Updates** - Git-based over-the-air update system with branch management
 
 ## Key Features
 
@@ -130,3 +208,7 @@ The project evolved through these key phases:
 - **WiFi Setup**: Automatic access point mode for first-boot configuration
 - **Kiosk Mode**: Auto-start Chrome in fullscreen on boot
 - **Network Management**: Automatic WiFi detection and fallback to AP mode
+- **OTA Updates**: Git-based updates with branch switching (main/dev/canary)
+- **Automatic Backups**: Rollback capability for failed updates
+- **Boot-time Updates**: Automatic update checks on system boot
+- **One-click Installation**: Complete setup script for fresh Raspberry Pi
