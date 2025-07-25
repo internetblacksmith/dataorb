@@ -14,7 +14,7 @@
   height: 480px;
   border-radius: 50%;
   background: radial-gradient(circle, #444444 0%, #2a2a2a 100%);
-  box-shadow: 
+  box-shadow:
     0 0 50px rgba(244, 76, 4, 0.3),
     inset 0 0 50px rgba(110, 140, 249, 0.1);
   overflow: hidden;
@@ -58,7 +58,11 @@
   width: 100px;
   height: 100px;
   border-radius: 50%;
-  background: linear-gradient(135deg, rgba(244, 76, 4, 0.2) 0%, rgba(110, 140, 249, 0.2) 100%);
+  background: linear-gradient(
+    135deg,
+    rgba(244, 76, 4, 0.2) 0%,
+    rgba(110, 140, 249, 0.2) 100%
+  );
   backdrop-filter: blur(10px);
   border: 2px solid rgba(244, 76, 4, 0.4);
   display: flex;
@@ -137,9 +141,15 @@
 }
 
 @keyframes pulse {
-  0% { opacity: 1; }
-  50% { opacity: 0.5; }
-  100% { opacity: 1; }
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 1;
+  }
 }
 
 .last-updated {
@@ -177,8 +187,12 @@
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 .error {

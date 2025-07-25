@@ -95,11 +95,16 @@ const ConfigPage: React.FC = () => {
   const [config, setConfig] = useState<DeviceConfig | null>(null);
   const [deviceInfo, setDeviceInfo] = useState<DeviceInfo | null>(null);
   const [otaStatus, setOtaStatus] = useState<OTAStatus | null>(null);
-  const [availableMetrics, setAvailableMetrics] = useState<AvailableMetrics>({});
+  const [availableMetrics, setAvailableMetrics] = useState<AvailableMetrics>(
+    {},
+  );
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState('device');
-  const [message, setMessage] = useState<{type: 'success' | 'error'; text: string} | null>(null);
+  const [message, setMessage] = useState<{
+    type: 'success' | 'error';
+    text: string;
+  } | null>(null);
   const [testingConnection, setTestingConnection] = useState(false);
   const [checkingUpdates, setCheckingUpdates] = useState(false);
   const [updating, setUpdating] = useState(false);
@@ -157,15 +162,15 @@ const ConfigPage: React.FC = () => {
 
   const saveConfig = async () => {
     if (!config) return;
-    
+
     setSaving(true);
     try {
       const response = await fetch(`${API_BASE}/api/admin/config`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(config)
+        body: JSON.stringify(config),
       });
-      
+
       const result = await response.json();
       if (result.success) {
         showMessage('success', 'Configuration saved successfully');
@@ -182,15 +187,18 @@ const ConfigPage: React.FC = () => {
 
   const testPostHogConnection = async () => {
     if (!config) return;
-    
+
     setTestingConnection(true);
     try {
-      const response = await fetch(`${API_BASE}/api/admin/config/validate/posthog`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(config.posthog)
-      });
-      
+      const response = await fetch(
+        `${API_BASE}/api/admin/config/validate/posthog`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(config.posthog),
+        },
+      );
+
       const result = await response.json();
       if (result.valid) {
         showMessage('success', result.message);
@@ -204,15 +212,19 @@ const ConfigPage: React.FC = () => {
     }
   };
 
-
   const resetConfig = async () => {
-    if (!window.confirm('Are you sure you want to reset all settings to defaults?')) return;
-    
+    if (
+      !window.confirm(
+        'Are you sure you want to reset all settings to defaults?',
+      )
+    )
+      return;
+
     try {
       const response = await fetch(`${API_BASE}/api/admin/config/reset`, {
-        method: 'POST'
+        method: 'POST',
       });
-      
+
       const result = await response.json();
       if (result.success) {
         showMessage('success', 'Configuration reset to defaults');
@@ -230,7 +242,7 @@ const ConfigPage: React.FC = () => {
     try {
       const response = await fetch(`${API_BASE}/api/admin/ota/check`);
       const result = await response.json();
-      
+
       if (result.error) {
         showMessage('error', result.error);
       } else if (result.updates_available) {
@@ -238,7 +250,7 @@ const ConfigPage: React.FC = () => {
       } else {
         showMessage('success', 'No updates available');
       }
-      
+
       loadOTAStatus();
     } catch (error) {
       showMessage('error', 'Failed to check for updates');
@@ -248,14 +260,19 @@ const ConfigPage: React.FC = () => {
   };
 
   const updateSystem = async () => {
-    if (!window.confirm('Are you sure you want to update the system? This will restart the application.')) return;
-    
+    if (
+      !window.confirm(
+        'Are you sure you want to update the system? This will restart the application.',
+      )
+    )
+      return;
+
     setUpdating(true);
     try {
       const response = await fetch(`${API_BASE}/api/admin/ota/update`, {
-        method: 'POST'
+        method: 'POST',
       });
-      
+
       const result = await response.json();
       if (result.success) {
         showMessage('success', 'System updated successfully');
@@ -271,16 +288,21 @@ const ConfigPage: React.FC = () => {
   };
 
   const switchBranch = async (branch: string) => {
-    if (!window.confirm(`Are you sure you want to switch to branch ${branch}? This will restart the application.`)) return;
-    
+    if (
+      !window.confirm(
+        `Are you sure you want to switch to branch ${branch}? This will restart the application.`,
+      )
+    )
+      return;
+
     setUpdating(true);
     try {
       const response = await fetch(`${API_BASE}/api/admin/ota/switch-branch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ branch })
+        body: JSON.stringify({ branch }),
       });
-      
+
       const result = await response.json();
       if (result.success) {
         showMessage('success', result.message);
@@ -301,15 +323,19 @@ const ConfigPage: React.FC = () => {
     setTimeout(() => setMessage(null), 5000);
   };
 
-  const updateConfig = (section: keyof DeviceConfig, field: string, value: any) => {
+  const updateConfig = (
+    section: keyof DeviceConfig,
+    field: string,
+    value: any,
+  ) => {
     if (!config) return;
-    
+
     setConfig({
       ...config,
       [section]: {
         ...config[section],
-        [field]: value
-      }
+        [field]: value,
+      },
     });
   };
 
@@ -320,7 +346,7 @@ const ConfigPage: React.FC = () => {
     { id: 'network', label: 'Network', icon: '🌐' },
     { id: 'advanced', label: 'Advanced', icon: '⚙️' },
     { id: 'ota', label: 'Updates', icon: '🔄' },
-    { id: 'info', label: 'System Info', icon: 'ℹ️' }
+    { id: 'info', label: 'System Info', icon: 'ℹ️' },
   ];
 
   if (loading) {
@@ -347,18 +373,21 @@ const ConfigPage: React.FC = () => {
       <header className="config-header">
         <h1>📱 PostHog Pi Configuration</h1>
         <div className="header-actions">
-          <button onClick={() => window.location.href = '/'} className="btn-secondary">
+          <button
+            onClick={() => (window.location.href = '/')}
+            className="btn-secondary"
+          >
             📊 Dashboard
           </button>
-          <button 
-            onClick={resetConfig} 
+          <button
+            onClick={resetConfig}
             className="btn-danger"
             title="Reset to defaults"
           >
             🔄 Reset
           </button>
-          <button 
-            onClick={saveConfig} 
+          <button
+            onClick={saveConfig}
             disabled={saving}
             className="btn-primary"
           >
@@ -368,14 +397,12 @@ const ConfigPage: React.FC = () => {
       </header>
 
       {message && (
-        <div className={`message ${message.type}`}>
-          {message.text}
-        </div>
+        <div className={`message ${message.type}`}>{message.text}</div>
       )}
 
       <div className="config-content">
         <nav className="config-tabs">
-          {tabs.map(tab => (
+          {tabs.map((tab) => (
             <button
               key={tab.id}
               className={`tab ${activeTab === tab.id ? 'active' : ''}`}
@@ -396,7 +423,9 @@ const ConfigPage: React.FC = () => {
                 <input
                   type="text"
                   value={config.device.name}
-                  onChange={(e) => updateConfig('device', 'name', e.target.value)}
+                  onChange={(e) =>
+                    updateConfig('device', 'name', e.target.value)
+                  }
                   placeholder="PostHog Pi Dashboard"
                 />
               </div>
@@ -405,7 +434,9 @@ const ConfigPage: React.FC = () => {
                 <input
                   type="text"
                   value={config.device.location}
-                  onChange={(e) => updateConfig('device', 'location', e.target.value)}
+                  onChange={(e) =>
+                    updateConfig('device', 'location', e.target.value)
+                  }
                   placeholder="Office, Living Room, etc."
                 />
               </div>
@@ -413,7 +444,9 @@ const ConfigPage: React.FC = () => {
                 <label>Timezone</label>
                 <select
                   value={config.device.timezone}
-                  onChange={(e) => updateConfig('device', 'timezone', e.target.value)}
+                  onChange={(e) =>
+                    updateConfig('device', 'timezone', e.target.value)
+                  }
                 >
                   <option value="UTC">UTC</option>
                   <option value="America/New_York">Eastern Time</option>
@@ -436,7 +469,9 @@ const ConfigPage: React.FC = () => {
                 <input
                   type="password"
                   value={config.posthog.api_key}
-                  onChange={(e) => updateConfig('posthog', 'api_key', e.target.value)}
+                  onChange={(e) =>
+                    updateConfig('posthog', 'api_key', e.target.value)
+                  }
                   placeholder="Your PostHog API key"
                 />
               </div>
@@ -445,7 +480,9 @@ const ConfigPage: React.FC = () => {
                 <input
                   type="text"
                   value={config.posthog.project_id}
-                  onChange={(e) => updateConfig('posthog', 'project_id', e.target.value)}
+                  onChange={(e) =>
+                    updateConfig('posthog', 'project_id', e.target.value)
+                  }
                   placeholder="Your PostHog project ID"
                 />
               </div>
@@ -454,11 +491,13 @@ const ConfigPage: React.FC = () => {
                 <input
                   type="url"
                   value={config.posthog.host}
-                  onChange={(e) => updateConfig('posthog', 'host', e.target.value)}
+                  onChange={(e) =>
+                    updateConfig('posthog', 'host', e.target.value)
+                  }
                   placeholder="https://app.posthog.com"
                 />
               </div>
-              <button 
+              <button
                 onClick={testPostHogConnection}
                 disabled={testingConnection}
                 className="btn-secondary"
@@ -478,14 +517,22 @@ const ConfigPage: React.FC = () => {
                   min="5"
                   max="300"
                   value={config.display.refresh_interval}
-                  onChange={(e) => updateConfig('display', 'refresh_interval', parseInt(e.target.value))}
+                  onChange={(e) =>
+                    updateConfig(
+                      'display',
+                      'refresh_interval',
+                      parseInt(e.target.value),
+                    )
+                  }
                 />
               </div>
               <div className="form-group">
                 <label>Theme</label>
                 <select
                   value={config.display.theme}
-                  onChange={(e) => updateConfig('display', 'theme', e.target.value)}
+                  onChange={(e) =>
+                    updateConfig('display', 'theme', e.target.value)
+                  }
                 >
                   <option value="dark">Dark</option>
                   <option value="light">Light</option>
@@ -498,7 +545,13 @@ const ConfigPage: React.FC = () => {
                   min="10"
                   max="100"
                   value={config.display.brightness}
-                  onChange={(e) => updateConfig('display', 'brightness', parseInt(e.target.value))}
+                  onChange={(e) =>
+                    updateConfig(
+                      'display',
+                      'brightness',
+                      parseInt(e.target.value),
+                    )
+                  }
                 />
                 <span>{config.display.brightness}%</span>
               </div>
@@ -506,7 +559,13 @@ const ConfigPage: React.FC = () => {
                 <label>Rotation (degrees)</label>
                 <select
                   value={config.display.rotation}
-                  onChange={(e) => updateConfig('display', 'rotation', parseInt(e.target.value))}
+                  onChange={(e) =>
+                    updateConfig(
+                      'display',
+                      'rotation',
+                      parseInt(e.target.value),
+                    )
+                  }
                 >
                   <option value="0">0°</option>
                   <option value="90">90°</option>
@@ -514,66 +573,96 @@ const ConfigPage: React.FC = () => {
                   <option value="270">270°</option>
                 </select>
               </div>
-              
+
               <h3>Dashboard Metrics</h3>
               <p>Configure which metrics are displayed on the dashboard</p>
-              
+
               {['top', 'left', 'right'].map((position) => (
                 <div key={position} className="metric-config-group">
-                  <h4>{position.charAt(0).toUpperCase() + position.slice(1)} Position</h4>
+                  <h4>
+                    {position.charAt(0).toUpperCase() + position.slice(1)}{' '}
+                    Position
+                  </h4>
                   <div className="form-group">
                     <label>
                       <input
                         type="checkbox"
-                        checked={config.display.metrics[position as keyof typeof config.display.metrics].enabled}
+                        checked={
+                          config.display.metrics[
+                            position as keyof typeof config.display.metrics
+                          ].enabled
+                        }
                         onChange={(e) => {
                           const newMetrics = { ...config.display.metrics };
-                          newMetrics[position as keyof typeof newMetrics].enabled = e.target.checked;
+                          newMetrics[
+                            position as keyof typeof newMetrics
+                          ].enabled = e.target.checked;
                           updateConfig('display', 'metrics', newMetrics);
                         }}
                       />
                       Enable metric
                     </label>
                   </div>
-                  {config.display.metrics[position as keyof typeof config.display.metrics].enabled && (
+                  {config.display.metrics[
+                    position as keyof typeof config.display.metrics
+                  ].enabled && (
                     <>
                       <div className="form-group">
                         <label>Metric Type</label>
                         <select
-                          value={config.display.metrics[position as keyof typeof config.display.metrics].type}
+                          value={
+                            config.display.metrics[
+                              position as keyof typeof config.display.metrics
+                            ].type
+                          }
                           onChange={(e) => {
                             const newMetrics = { ...config.display.metrics };
-                            const selectedMetric = availableMetrics[e.target.value];
+                            const selectedMetric =
+                              availableMetrics[e.target.value];
                             newMetrics[position as keyof typeof newMetrics] = {
                               type: e.target.value,
                               label: selectedMetric?.label || e.target.value,
-                              enabled: true
+                              enabled: true,
                             };
                             updateConfig('display', 'metrics', newMetrics);
                           }}
                         >
-                          {Object.entries(availableMetrics).map(([key, metric]) => (
-                            <option key={key} value={key}>
-                              {metric.label}
-                            </option>
-                          ))}
+                          {Object.entries(availableMetrics).map(
+                            ([key, metric]) => (
+                              <option key={key} value={key}>
+                                {metric.label}
+                              </option>
+                            ),
+                          )}
                         </select>
                       </div>
                       <div className="form-group">
                         <label>Display Label</label>
                         <input
                           type="text"
-                          value={config.display.metrics[position as keyof typeof config.display.metrics].label}
+                          value={
+                            config.display.metrics[
+                              position as keyof typeof config.display.metrics
+                            ].label
+                          }
                           onChange={(e) => {
                             const newMetrics = { ...config.display.metrics };
-                            newMetrics[position as keyof typeof newMetrics].label = e.target.value;
+                            newMetrics[
+                              position as keyof typeof newMetrics
+                            ].label = e.target.value;
                             updateConfig('display', 'metrics', newMetrics);
                           }}
                           placeholder="Custom label"
                         />
                       </div>
                       <small className="metric-description">
-                        {availableMetrics[config.display.metrics[position as keyof typeof config.display.metrics].type]?.description}
+                        {
+                          availableMetrics[
+                            config.display.metrics[
+                              position as keyof typeof config.display.metrics
+                            ].type
+                          ]?.description
+                        }
                       </small>
                     </>
                   )}
@@ -590,7 +679,9 @@ const ConfigPage: React.FC = () => {
                   <input
                     type="checkbox"
                     checked={config.network.use_dhcp}
-                    onChange={(e) => updateConfig('network', 'use_dhcp', e.target.checked)}
+                    onChange={(e) =>
+                      updateConfig('network', 'use_dhcp', e.target.checked)
+                    }
                   />
                   Use DHCP (automatic IP)
                 </label>
@@ -601,7 +692,9 @@ const ConfigPage: React.FC = () => {
                   <input
                     type="text"
                     value={config.network.static_ip}
-                    onChange={(e) => updateConfig('network', 'static_ip', e.target.value)}
+                    onChange={(e) =>
+                      updateConfig('network', 'static_ip', e.target.value)
+                    }
                     placeholder="192.168.1.100"
                   />
                 </div>
@@ -611,7 +704,9 @@ const ConfigPage: React.FC = () => {
                 <input
                   type="text"
                   value={config.network.wifi_ssid}
-                  onChange={(e) => updateConfig('network', 'wifi_ssid', e.target.value)}
+                  onChange={(e) =>
+                    updateConfig('network', 'wifi_ssid', e.target.value)
+                  }
                   placeholder="Your WiFi network name"
                 />
               </div>
@@ -620,7 +715,9 @@ const ConfigPage: React.FC = () => {
                 <input
                   type="password"
                   value={config.network.wifi_password}
-                  onChange={(e) => updateConfig('network', 'wifi_password', e.target.value)}
+                  onChange={(e) =>
+                    updateConfig('network', 'wifi_password', e.target.value)
+                  }
                   placeholder="Your WiFi password"
                 />
               </div>
@@ -635,7 +732,9 @@ const ConfigPage: React.FC = () => {
                   <input
                     type="checkbox"
                     checked={config.advanced.debug_mode}
-                    onChange={(e) => updateConfig('advanced', 'debug_mode', e.target.checked)}
+                    onChange={(e) =>
+                      updateConfig('advanced', 'debug_mode', e.target.checked)
+                    }
                   />
                   Debug Mode
                 </label>
@@ -644,7 +743,9 @@ const ConfigPage: React.FC = () => {
                 <label>Log Level</label>
                 <select
                   value={config.advanced.log_level}
-                  onChange={(e) => updateConfig('advanced', 'log_level', e.target.value)}
+                  onChange={(e) =>
+                    updateConfig('advanced', 'log_level', e.target.value)
+                  }
                 >
                   <option value="DEBUG">Debug</option>
                   <option value="INFO">Info</option>
@@ -657,7 +758,9 @@ const ConfigPage: React.FC = () => {
                   <input
                     type="checkbox"
                     checked={config.advanced.auto_update}
-                    onChange={(e) => updateConfig('advanced', 'auto_update', e.target.checked)}
+                    onChange={(e) =>
+                      updateConfig('advanced', 'auto_update', e.target.checked)
+                    }
                   />
                   Auto Update
                 </label>
@@ -667,7 +770,13 @@ const ConfigPage: React.FC = () => {
                   <input
                     type="checkbox"
                     checked={config.advanced.backup_enabled}
-                    onChange={(e) => updateConfig('advanced', 'backup_enabled', e.target.checked)}
+                    onChange={(e) =>
+                      updateConfig(
+                        'advanced',
+                        'backup_enabled',
+                        e.target.checked,
+                      )
+                    }
                   />
                   Enable Backups
                 </label>
@@ -678,37 +787,45 @@ const ConfigPage: React.FC = () => {
           {activeTab === 'ota' && (
             <div className="config-section">
               <h2>Over-The-Air Updates</h2>
-              
+
               {otaStatus && (
                 <div className="ota-status">
                   <div className="info-grid">
                     <div className="info-card">
                       <h3>Current Status</h3>
-                      <p><strong>Branch:</strong> {otaStatus.current_branch}</p>
-                      <p><strong>Commit:</strong> {otaStatus.current_commit}</p>
-                      <p><strong>Last Check:</strong> {
-                        otaStatus.last_check 
+                      <p>
+                        <strong>Branch:</strong> {otaStatus.current_branch}
+                      </p>
+                      <p>
+                        <strong>Commit:</strong> {otaStatus.current_commit}
+                      </p>
+                      <p>
+                        <strong>Last Check:</strong>{' '}
+                        {otaStatus.last_check
                           ? new Date(otaStatus.last_check).toLocaleString()
-                          : 'Never'
-                      }</p>
-                      <p><strong>Last Update:</strong> {
-                        otaStatus.last_update 
+                          : 'Never'}
+                      </p>
+                      <p>
+                        <strong>Last Update:</strong>{' '}
+                        {otaStatus.last_update
                           ? new Date(otaStatus.last_update).toLocaleString()
-                          : 'Never'
-                      }</p>
+                          : 'Never'}
+                      </p>
                     </div>
-                    
+
                     <div className="info-card">
                       <h3>Actions</h3>
                       <div className="button-group">
-                        <button 
+                        <button
                           onClick={checkForUpdates}
                           disabled={checkingUpdates}
                           className="btn-secondary"
                         >
-                          {checkingUpdates ? '🔄 Checking...' : '🔍 Check for Updates'}
+                          {checkingUpdates
+                            ? '🔄 Checking...'
+                            : '🔍 Check for Updates'}
                         </button>
-                        <button 
+                        <button
                           onClick={updateSystem}
                           disabled={updating}
                           className="btn-primary"
@@ -726,7 +843,9 @@ const ConfigPage: React.FC = () => {
                   <input
                     type="checkbox"
                     checked={config?.ota?.enabled || false}
-                    onChange={(e) => updateConfig('ota', 'enabled', e.target.checked)}
+                    onChange={(e) =>
+                      updateConfig('ota', 'enabled', e.target.checked)
+                    }
                   />
                   Enable OTA Updates
                 </label>
@@ -744,8 +863,10 @@ const ConfigPage: React.FC = () => {
                   }}
                   disabled={updating}
                 >
-                  {otaStatus?.available_branches?.map(branch => (
-                    <option key={branch} value={branch}>{branch}</option>
+                  {otaStatus?.available_branches?.map((branch) => (
+                    <option key={branch} value={branch}>
+                      {branch}
+                    </option>
                   )) || (
                     <>
                       <option value="main">main</option>
@@ -762,7 +883,9 @@ const ConfigPage: React.FC = () => {
                   <input
                     type="checkbox"
                     checked={config?.ota?.check_on_boot || false}
-                    onChange={(e) => updateConfig('ota', 'check_on_boot', e.target.checked)}
+                    onChange={(e) =>
+                      updateConfig('ota', 'check_on_boot', e.target.checked)
+                    }
                   />
                   Check for updates on boot
                 </label>
@@ -773,7 +896,9 @@ const ConfigPage: React.FC = () => {
                   <input
                     type="checkbox"
                     checked={config?.ota?.auto_pull || false}
-                    onChange={(e) => updateConfig('ota', 'auto_pull', e.target.checked)}
+                    onChange={(e) =>
+                      updateConfig('ota', 'auto_pull', e.target.checked)
+                    }
                   />
                   Automatically pull updates
                 </label>
@@ -797,34 +922,63 @@ const ConfigPage: React.FC = () => {
               <div className="info-grid">
                 <div className="info-card">
                   <h3>Device</h3>
-                  <p><strong>Name:</strong> {deviceInfo.device.name}</p>
-                  <p><strong>Location:</strong> {deviceInfo.device.location}</p>
-                  <p><strong>Last Configured:</strong> {
-                    deviceInfo.device.last_configured 
-                      ? new Date(deviceInfo.device.last_configured).toLocaleString()
-                      : 'Never'
-                  }</p>
+                  <p>
+                    <strong>Name:</strong> {deviceInfo.device.name}
+                  </p>
+                  <p>
+                    <strong>Location:</strong> {deviceInfo.device.location}
+                  </p>
+                  <p>
+                    <strong>Last Configured:</strong>{' '}
+                    {deviceInfo.device.last_configured
+                      ? new Date(
+                          deviceInfo.device.last_configured,
+                        ).toLocaleString()
+                      : 'Never'}
+                  </p>
                 </div>
-                
+
                 <div className="info-card">
                   <h3>System</h3>
-                  <p><strong>Platform:</strong> {deviceInfo.system.platform}</p>
-                  <p><strong>Hostname:</strong> {deviceInfo.system.hostname}</p>
-                  <p><strong>Python:</strong> {deviceInfo.system.python_version}</p>
+                  <p>
+                    <strong>Platform:</strong> {deviceInfo.system.platform}
+                  </p>
+                  <p>
+                    <strong>Hostname:</strong> {deviceInfo.system.hostname}
+                  </p>
+                  <p>
+                    <strong>Python:</strong> {deviceInfo.system.python_version}
+                  </p>
                   {deviceInfo.system.architecture && (
-                    <p><strong>Architecture:</strong> {deviceInfo.system.architecture}</p>
+                    <p>
+                      <strong>Architecture:</strong>{' '}
+                      {deviceInfo.system.architecture}
+                    </p>
                   )}
                 </div>
-                
+
                 <div className="info-card">
                   <h3>Performance</h3>
                   {deviceInfo.performance.error ? (
                     <p className="error">{deviceInfo.performance.error}</p>
                   ) : (
                     <>
-                      <p><strong>CPU Usage:</strong> {deviceInfo.performance.cpu_percent}%</p>
-                      <p><strong>Memory:</strong> {deviceInfo.performance.memory_used_gb}GB / {deviceInfo.performance.memory_total_gb}GB ({deviceInfo.performance.memory_percent}%)</p>
-                      <p><strong>Disk:</strong> {deviceInfo.performance.disk_free_gb}GB free of {deviceInfo.performance.disk_total_gb}GB ({deviceInfo.performance.disk_percent}% used)</p>
+                      <p>
+                        <strong>CPU Usage:</strong>{' '}
+                        {deviceInfo.performance.cpu_percent}%
+                      </p>
+                      <p>
+                        <strong>Memory:</strong>{' '}
+                        {deviceInfo.performance.memory_used_gb}GB /{' '}
+                        {deviceInfo.performance.memory_total_gb}GB (
+                        {deviceInfo.performance.memory_percent}%)
+                      </p>
+                      <p>
+                        <strong>Disk:</strong>{' '}
+                        {deviceInfo.performance.disk_free_gb}GB free of{' '}
+                        {deviceInfo.performance.disk_total_gb}GB (
+                        {deviceInfo.performance.disk_percent}% used)
+                      </p>
                     </>
                   )}
                 </div>

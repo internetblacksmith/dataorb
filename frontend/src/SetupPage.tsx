@@ -18,13 +18,17 @@ interface WiFiNetwork {
 }
 
 const SetupPage: React.FC = () => {
-  const [networkStatus, setNetworkStatus] = useState<NetworkStatus | null>(null);
+  const [networkStatus, setNetworkStatus] = useState<NetworkStatus | null>(
+    null,
+  );
   const [availableNetworks, setAvailableNetworks] = useState<WiFiNetwork[]>([]);
   const [selectedNetwork, setSelectedNetwork] = useState<string>('');
   const [wifiPassword, setWifiPassword] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string>('');
-  const [step, setStep] = useState<'welcome' | 'networks' | 'connecting' | 'success'>('welcome');
+  const [step, setStep] = useState<
+    'welcome' | 'networks' | 'connecting' | 'success'
+  >('welcome');
 
   const API_BASE = process.env.REACT_APP_API_URL || '';
 
@@ -37,7 +41,7 @@ const SetupPage: React.FC = () => {
       const response = await fetch(`${API_BASE}/api/network/status`);
       const data = await response.json();
       setNetworkStatus(data);
-      
+
       if (data.network_connected) {
         setStep('success');
       }
@@ -49,7 +53,7 @@ const SetupPage: React.FC = () => {
   const scanNetworks = async () => {
     setLoading(true);
     setMessage('Scanning for WiFi networks...');
-    
+
     try {
       const response = await fetch(`${API_BASE}/api/network/scan`);
       const networks = await response.json();
@@ -85,8 +89,8 @@ const SetupPage: React.FC = () => {
           network: {
             wifi_ssid: selectedNetwork,
             wifi_password: wifiPassword,
-            use_dhcp: true
-          }
+            use_dhcp: true,
+          },
         }),
       });
 
@@ -102,7 +106,7 @@ const SetupPage: React.FC = () => {
         },
         body: JSON.stringify({
           ssid: selectedNetwork,
-          password: wifiPassword
+          password: wifiPassword,
         }),
       });
 
@@ -111,13 +115,15 @@ const SetupPage: React.FC = () => {
       if (result.success) {
         setMessage('Connected successfully! Switching to normal mode...');
         setStep('success');
-        
+
         // Wait a moment then reload to switch to normal dashboard
         setTimeout(() => {
           window.location.href = '/';
         }, 3000);
       } else {
-        setMessage('Failed to connect. Please check your password and try again.');
+        setMessage(
+          'Failed to connect. Please check your password and try again.',
+        );
         setStep('networks');
       }
     } catch (error) {
@@ -148,18 +154,24 @@ const SetupPage: React.FC = () => {
             <div className="status-icon">📶</div>
             <div className="status-info">
               <h3>Setup Mode Active</h3>
-              <p>Connected to: <strong>PostHog-Pi-Setup</strong></p>
-              <p>Setup URL: <strong>http://192.168.4.1:5000</strong></p>
+              <p>
+                Connected to: <strong>PostHog-Pi-Setup</strong>
+              </p>
+              <p>
+                Setup URL: <strong>http://192.168.4.1:5000</strong>
+              </p>
             </div>
           </div>
         )}
-        
+
         {networkStatus?.network_connected ? (
           <div className="status-card connected">
             <div className="status-icon">✅</div>
             <div className="status-info">
               <h3>Network Connected</h3>
-              <p>Connected to: <strong>{networkStatus.wifi_status.ssid}</strong></p>
+              <p>
+                Connected to: <strong>{networkStatus.wifi_status.ssid}</strong>
+              </p>
             </div>
           </div>
         ) : (
@@ -174,16 +186,16 @@ const SetupPage: React.FC = () => {
       </div>
 
       <div className="setup-actions">
-        <button 
+        <button
           onClick={scanNetworks}
           disabled={loading}
           className="setup-button primary"
         >
           {loading ? 'Scanning...' : 'Setup WiFi Connection'}
         </button>
-        
-        <button 
-          onClick={() => window.location.href = '/config'}
+
+        <button
+          onClick={() => (window.location.href = '/config')}
           className="setup-button secondary"
         >
           Advanced Configuration
@@ -193,9 +205,17 @@ const SetupPage: React.FC = () => {
       <div className="setup-instructions">
         <h3>Setup Instructions</h3>
         <ol>
-          <li>Connect your device to the <strong>PostHog-Pi-Setup</strong> WiFi network</li>
-          <li>Password: <strong>posthog123</strong></li>
-          <li>Open your browser and navigate to <strong>http://192.168.4.1:5000</strong></li>
+          <li>
+            Connect your device to the <strong>PostHog-Pi-Setup</strong> WiFi
+            network
+          </li>
+          <li>
+            Password: <strong>posthog123</strong>
+          </li>
+          <li>
+            Open your browser and navigate to{' '}
+            <strong>http://192.168.4.1:5000</strong>
+          </li>
           <li>Follow the setup wizard to configure your WiFi</li>
         </ol>
       </div>
@@ -211,7 +231,7 @@ const SetupPage: React.FC = () => {
 
       <div className="networks-list">
         {availableNetworks.map((network, index) => (
-          <div 
+          <div
             key={index}
             className={`network-item ${selectedNetwork === network.ssid ? 'selected' : ''}`}
             onClick={() => setSelectedNetwork(network.ssid)}
@@ -231,9 +251,7 @@ const SetupPage: React.FC = () => {
 
       {selectedNetwork && (
         <div className="password-section">
-          <label htmlFor="wifi-password">
-            Password for {selectedNetwork}:
-          </label>
+          <label htmlFor="wifi-password">Password for {selectedNetwork}:</label>
           <input
             id="wifi-password"
             type="password"
@@ -246,15 +264,15 @@ const SetupPage: React.FC = () => {
       )}
 
       <div className="setup-actions">
-        <button 
+        <button
           onClick={connectToNetwork}
           disabled={loading || !selectedNetwork || !wifiPassword}
           className="setup-button primary"
         >
           Connect to Network
         </button>
-        
-        <button 
+
+        <button
           onClick={() => setStep('welcome')}
           className="setup-button secondary"
         >
@@ -287,7 +305,10 @@ const SetupPage: React.FC = () => {
       </div>
 
       <div className="success-info">
-        <p>You can now configure your PostHog settings and start viewing analytics.</p>
+        <p>
+          You can now configure your PostHog settings and start viewing
+          analytics.
+        </p>
         <p>Redirecting to dashboard...</p>
       </div>
     </div>
@@ -300,9 +321,11 @@ const SetupPage: React.FC = () => {
         {step === 'networks' && renderNetworks()}
         {step === 'connecting' && renderConnecting()}
         {step === 'success' && renderSuccess()}
-        
+
         {message && (
-          <div className={`setup-message ${message.includes('Failed') || message.includes('Error') ? 'error' : ''}`}>
+          <div
+            className={`setup-message ${message.includes('Failed') || message.includes('Error') ? 'error' : ''}`}
+          >
             {message}
           </div>
         )}

@@ -24,7 +24,9 @@ interface DisplayConfig {
 
 const App: React.FC = () => {
   const [stats, setStats] = useState<PostHogStats | null>(null);
-  const [displayConfig, setDisplayConfig] = useState<DisplayConfig | null>(null);
+  const [displayConfig, setDisplayConfig] = useState<DisplayConfig | null>(
+    null,
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -32,7 +34,7 @@ const App: React.FC = () => {
     try {
       const response = await fetch('/api/stats');
       const data = await response.json();
-      
+
       if (data.error) {
         setError(data.error);
       } else {
@@ -67,7 +69,10 @@ const App: React.FC = () => {
   const formatTime = (timestamp: string): string => {
     try {
       const date = new Date(timestamp);
-      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      return date.toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
     } catch {
       return 'N/A';
     }
@@ -92,9 +97,7 @@ const App: React.FC = () => {
       <div className="app error">
         <h2>Error</h2>
         <p>{error}</p>
-        <button onClick={fetchStats}>
-          Retry
-        </button>
+        <button onClick={fetchStats}>Retry</button>
       </div>
     );
   }
@@ -112,22 +115,34 @@ const App: React.FC = () => {
         <div className="circular-stats">
           {displayConfig?.metrics.top.enabled && (
             <div className="stat-circle stat-top">
-              <div className="stat-value">{getMetricValue(displayConfig.metrics.top.type)}</div>
-              <div className="stat-label">{displayConfig.metrics.top.label}</div>
+              <div className="stat-value">
+                {getMetricValue(displayConfig.metrics.top.type)}
+              </div>
+              <div className="stat-label">
+                {displayConfig.metrics.top.label}
+              </div>
             </div>
           )}
 
           {displayConfig?.metrics.left.enabled && (
             <div className="stat-circle stat-left">
-              <div className="stat-value">{getMetricValue(displayConfig.metrics.left.type)}</div>
-              <div className="stat-label">{displayConfig.metrics.left.label}</div>
+              <div className="stat-value">
+                {getMetricValue(displayConfig.metrics.left.type)}
+              </div>
+              <div className="stat-label">
+                {displayConfig.metrics.left.label}
+              </div>
             </div>
           )}
 
           {displayConfig?.metrics.right.enabled && (
             <div className="stat-circle stat-right">
-              <div className="stat-value">{getMetricValue(displayConfig.metrics.right.type)}</div>
-              <div className="stat-label">{displayConfig.metrics.right.label}</div>
+              <div className="stat-value">
+                {getMetricValue(displayConfig.metrics.right.type)}
+              </div>
+              <div className="stat-label">
+                {displayConfig.metrics.right.label}
+              </div>
             </div>
           )}
         </div>

@@ -188,13 +188,17 @@ echo "   nano $INSTALL_DIR/backend/.env"
 echo
 echo "2. Add your PostHog API key and project ID"
 echo
-echo "3. Start the services:"
+echo "3. Set up HyperPixel Round display (if using):"
+echo "   sudo $INSTALL_DIR/config/hyperpixel-setup.sh"
+echo "   sudo reboot"
+echo
+echo "4. Start the services:"
 echo "   sudo systemctl start posthog-display.service"
 echo
-echo "4. Access the dashboard:"
+echo "5. Access the dashboard:"
 echo "   http://raspberry-pi-ip:5000"
 echo
-echo "5. Access configuration:"
+echo "6. Access configuration:"
 echo "   http://raspberry-pi-ip:5000/config"
 echo
 echo "6. Reboot to start kiosk mode:"
