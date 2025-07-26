@@ -7,14 +7,14 @@
 After flashing Raspberry Pi OS and first boot:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/jabawack81/posthog_pi/main/scripts/install-pi.sh | bash
+curl -sSL https://raw.githubusercontent.com/jabawack81/pi_analytics_dashboard/main/scripts/install-pi.sh | bash
 ```
 
 Or manually:
 
 ```bash
 # Download and run installer
-wget https://raw.githubusercontent.com/jabawack81/posthog_pi/main/scripts/install-pi.sh
+wget https://raw.githubusercontent.com/jabawack81/pi_analytics_dashboard/main/scripts/install-pi.sh
 chmod +x install-pi.sh
 ./install-pi.sh
 ```
@@ -59,8 +59,8 @@ If you prefer manual setup:
 
 ### **1. Clone Repository**
 ```bash
-git clone https://github.com/jabawack81/posthog_pi.git
-cd posthog_pi
+git clone https://github.com/jabawack81/pi_analytics_dashboard.git
+cd pi_analytics_dashboard
 ```
 
 ### **2. Backend Setup**
@@ -173,6 +173,33 @@ Check the following if you encounter issues:
 3. **Services**: Check systemd service status
 4. **Logs**: Review application logs
 5. **Permissions**: Ensure correct file permissions
+
+### Network Management
+
+For advanced network troubleshooting, use the network manager script:
+
+```bash
+# Check network status
+python3 scripts/network-manager.py status
+
+# Scan for available WiFi networks
+python3 scripts/network-manager.py scan
+
+# Start access point mode for setup
+python3 scripts/network-manager.py start-ap
+
+# Stop access point mode
+python3 scripts/network-manager.py stop-ap
+
+# Ensure network is properly configured
+python3 scripts/network-manager.py ensure-setup
+```
+
+The network manager handles:
+- WiFi access point setup (SSID: `Pi-Analytics-Setup`)
+- Network detection and connection
+- Fallback to AP mode when no network available
+- Automatic network transitions
 
 ## 🎉 Success!
 

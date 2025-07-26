@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Network Manager for PostHog Pi
+Network Manager for Pi Analytics Dashboard
 Handles network detection, WiFi AP setup, and network transitions
 """
 
@@ -15,8 +15,8 @@ class NetworkManager:
     def __init__(self, config_file: str = "/home/paolo/dev/posthog_pi/backend/device_config.json"):
         self.config_file = config_file
         self.ap_interface = "wlan0"
-        self.ap_ssid = "PostHog-Pi-Setup"
-        self.ap_password = "posthog123"
+        self.ap_ssid = "Pi-Analytics-Setup"
+        self.ap_password = "analytics123"
         self.ap_ip = "192.168.4.1"
         self.ap_range = "192.168.4.2,192.168.4.20"
         

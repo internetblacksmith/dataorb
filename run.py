@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Quick production runner for PostHog Pi
+Quick production runner for Pi Analytics Dashboard
 Builds frontend and starts integrated Flask server
 """
 import os
@@ -23,7 +23,7 @@ def main():
     script_dir = Path(__file__).parent
     os.chdir(script_dir)
     
-    print("🚀 PostHog Pi Quick Production Run")
+    print("🚀 Pi Analytics Dashboard Quick Production Run")
     print("=" * 40)
     
     # Build frontend

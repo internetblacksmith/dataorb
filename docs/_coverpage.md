@@ -1,8 +1,8 @@
 <!-- _coverpage.md -->
 
-![logo](https://raw.githubusercontent.com/PostHog/posthog.com/main/contents/images/logo/posthog-logo.svg ':size=200')
+![logo](assets/logo.svg ':size=200')
 
-# PostHog Pi <small>1.0</small>
+# Pi Analytics Dashboard <small>1.0</small>
 
 > IoT Analytics Dashboard for Raspberry Pi
 
@@ -14,7 +14,4 @@
 - 📱 Optimized for HyperPixel Round display
 
 [Get Started](QUICK_START.md)
-[GitHub](https://github.com/jabawack81/posthog_pi)
-
-<!-- background image -->
-![](https://raw.githubusercontent.com/PostHog/posthog.com/main/contents/images/product/product-analytics.png)
+[GitHub](https://github.com/jabawack81/pi_analytics_dashboard)

@@ -1,0 +1,12 @@
+/* Pi Analytics Dashboard - Minimal Custom Styles */
+
+/* This file is intentionally minimal to use the base docsify dark theme */
+
+/* Fix cover page to match dark theme */
+.cover {
+  background: #282c34 !important;
+}
+
+.cover-main {
+  color: #bfc7d5 !important;
+}

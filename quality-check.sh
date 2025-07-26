@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# Quality Gate Script for PostHog Pi
+# Quality Gate Script for Pi Analytics Dashboard
 # This script runs all quality checks for the project
 
 set -e  # Exit on any error
 
-echo "🔍 Running PostHog Pi Quality Gate..."
+echo "🔍 Running Pi Analytics Dashboard Quality Gate..."
 echo "====================================="
 
 # Colors for output

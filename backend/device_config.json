@@ -1,9 +1,9 @@
 {
   "device": {
-    "name": "PostHog Pi Dashboard",
+    "name": "Pi Analytics Dashboard",
     "location": "Office",
     "timezone": "UTC",
-    "last_configured": "2025-07-07T23:25:08.248212"
+    "last_configured": "2025-07-26T01:25:34.968586"
   },
   "posthog": {
     "api_key": "",
@@ -15,7 +15,24 @@
     "theme": "dark",
     "brightness": 100,
     "rotation": 0,
-    "screensaver_timeout": 0
+    "screensaver_timeout": 0,
+    "metrics": {
+      "top": {
+        "type": "events_24h",
+        "label": "Events",
+        "enabled": true
+      },
+      "left": {
+        "type": "unique_users_24h",
+        "label": "Users",
+        "enabled": true
+      },
+      "right": {
+        "type": "page_views_24h",
+        "label": "Views",
+        "enabled": true
+      }
+    }
   },
   "network": {
     "wifi_ssid": "",
@@ -28,5 +45,13 @@
     "log_level": "INFO",
     "auto_update": true,
     "backup_enabled": true
+  },
+  "ota": {
+    "enabled": true,
+    "branch": "main",
+    "check_on_boot": true,
+    "auto_pull": true,
+    "last_update": null,
+    "last_check": "2025-07-26T01:25:34.968576"
   }
 }

@@ -2,7 +2,7 @@ from flask import Flask, jsonify, send_from_directory, request
 from flask_cors import CORS
 import requests
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 from config_manager import ConfigManager
 from ota_manager import OTAManager
@@ -39,7 +39,7 @@ def get_stats():
         # Get events for last 24 hours
         events_url = f"{POSTHOG_HOST}/api/projects/{POSTHOG_PROJECT_ID}/events"
         params = {
-            "after": (datetime.now() - timedelta(days=1)).isoformat(),
+            "after": (datetime.now(timezone.utc) - timedelta(days=1)).isoformat(),
             "limit": "100",
         }
 
@@ -65,7 +65,7 @@ def get_stats():
         recent_events = events[:10] if events else []
 
         # Calculate metrics for different time periods
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
         last_hour = now - timedelta(hours=1)
         events_last_hour = len(
             [
@@ -87,7 +87,7 @@ def get_stats():
             if unique_users > 0
             else 0,
             "recent_events": recent_events,
-            "last_updated": datetime.now().isoformat(),
+            "last_updated": datetime.now(timezone.utc).isoformat(),
         }
 
         return jsonify(all_metrics)
@@ -132,7 +132,7 @@ def get_available_metrics():
 @app.route("/api/health")
 def health_check():
     """Health check endpoint"""
-    return jsonify({"status": "healthy", "timestamp": datetime.now().isoformat()})
+    return jsonify({"status": "healthy", "timestamp": datetime.now(timezone.utc).isoformat()})
 
 
 # OTA Management API Routes

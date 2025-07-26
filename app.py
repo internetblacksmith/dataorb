@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-PostHog Pi - Integrated Flask Application
+Pi Analytics Dashboard - Integrated Flask Application
 Serves both the API and React frontend from a single server
 """
 
@@ -12,7 +12,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'backend'))
 from backend.app import app
 
 if __name__ == '__main__':
-    print("Starting PostHog Pi integrated server...")
+    print("Starting Pi Analytics Dashboard integrated server...")
     print("API endpoints available at /api/*")
     print("React app served at /")
     print("Server running on http://localhost:5000")

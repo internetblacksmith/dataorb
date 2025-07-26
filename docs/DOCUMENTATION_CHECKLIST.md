@@ -8,6 +8,8 @@ This checklist ensures all documentation stays up-to-date with code changes.
 
 ## When to Update Documentation
 
+### When Documentation IS Required
+
 ### 1. ✅ Adding New Features
 - [ ] Update README.md with feature description
 - [ ] Add usage examples to QUICK_START.md
@@ -51,6 +53,57 @@ This checklist ensures all documentation stays up-to-date with code changes.
 - [ ] Document new checks or tools
 - [ ] Update quality-check.sh if needed
 - [ ] Add to pre-commit hooks if applicable
+
+## When Documentation is NOT Required
+
+### Changes that DON'T need documentation:
+
+1. **🔧 Code Refactoring**
+   - Internal code reorganization
+   - Performance optimizations
+   - Code style improvements
+   - Variable renaming (internal only)
+
+2. **🧪 Test Additions/Changes**
+   - Adding unit tests
+   - Updating test fixtures
+   - Test refactoring
+   - Test coverage improvements
+
+3. **🎨 Style Changes**
+   - Code formatting (Black, Prettier)
+   - Linting fixes
+   - Comment updates
+   - Whitespace changes
+
+4. **🔨 Build/Tooling**
+   - Dev dependency updates
+   - Build script optimizations
+   - CI/CD improvements (unless user-facing)
+
+5. **🐛 Bug Fixes** (unless they change behavior)
+   - Internal error fixes
+   - Memory leak fixes
+   - Race condition fixes
+
+### How to Mark Changes as Not Needing Docs
+
+If your changes genuinely don't need documentation:
+
+```bash
+# Option 1: Use skip script
+./scripts/skip-doc-check.sh "Reason: internal refactoring only"
+
+# Option 2: Use conventional commit messages
+git commit -m "refactor: reorganize internal API structure"
+git commit -m "test: add unit tests for config manager"
+git commit -m "style: apply Black formatting"
+git commit -m "chore: update dev dependencies"
+
+# Option 3: Add to .doc-ignore.json for permanent exclusions
+```
+
+The intelligent detection system recognizes these patterns and won't flag them as needing documentation.
 
 ## Documentation Files Reference
 

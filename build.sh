@@ -1,9 +1,9 @@
 #!/bin/bash
-# Build script for PostHog Pi
+# Build script for Pi Analytics Dashboard
 
 set -e
 
-echo "🚀 Building PostHog Pi..."
+echo "🚀 Building Pi Analytics Dashboard..."
 echo "========================"
 
 # Check if frontend directory exists

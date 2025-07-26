@@ -9,7 +9,7 @@ class ConfigManager:
         self.config_file = config_file
         self.default_config = {
             "device": {
-                "name": "PostHog Pi Dashboard",
+                "name": "Pi Analytics Dashboard",
                 "location": "Office",
                 "timezone": "UTC",
                 "last_configured": None,
