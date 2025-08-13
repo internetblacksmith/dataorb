@@ -1,0 +1,19 @@
+[Unit]
+Description=Pi Analytics Dashboard Backend Service
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory={{ app_dir }}/backend
+Environment="PATH={{ app_dir }}/backend/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+ExecStart={{ app_dir }}/backend/venv/bin/python {{ app_dir }}/backend/app.py
+Restart=always
+RestartSec=10
+StandardOutput=append:/var/log/pi-analytics/backend.log
+StandardError=append:/var/log/pi-analytics/backend-error.log
+
+[Install]
+WantedBy=multi-user.target

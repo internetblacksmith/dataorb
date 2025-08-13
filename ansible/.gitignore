@@ -1,0 +1,33 @@
+# Ansible deployment gitignore
+
+# Local inventory file (contains IP addresses and credentials)
+inventory.ini
+
+# Vault password file
+.vault_pass
+
+# Ansible retry files
+*.retry
+
+# Temporary files
+*.tmp
+.*.swp
+
+# Local overrides
+ansible.cfg.local
+
+# SSH keys
+*.pem
+*.key
+id_rsa*
+
+# Logs
+*.log
+
+# Backup files
+*.backup
+*.bak
+
+# Python cache
+__pycache__/
+*.pyc

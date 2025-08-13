@@ -1,0 +1,527 @@
+---
+# Pi Analytics Dashboard - Complete Installation Playbook
+# This playbook installs and configures the complete Pi Analytics Dashboard
+# including HyperPixel display setup, application deployment, and auto-start services
+
+- name: Install Pi Analytics Dashboard on Raspberry Pi Zero W
+  hosts: pi
+  become: yes
+  vars:
+    app_dir: "/home/{{ ansible_user }}/pi_analytics_dashboard"
+    posthog_api_key: "{{ vault_posthog_api_key | default('') }}"
+    posthog_project_id: "{{ vault_posthog_project_id | default('') }}"
+    posthog_host: "{{ vault_posthog_host | default('https://app.posthog.com') }}"
+    display_type: hyperpixel_round  # hyperpixel_round, hyperpixel_square, hdmi
+    os_version: "{{ ansible_distribution_release }}"
+    
+  tasks:
+    # ============================================
+    # Phase 1: System Preparation
+    # ============================================
+    
+    - name: Update apt cache (this may take a few minutes)
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+      tags: ['system']
+    
+    - name: Install system dependencies (this may take 5-10 minutes on Pi Zero W)
+      apt:
+        name:
+          - git
+          - python3
+          - python3-pip
+          - python3-venv
+          - python3-dev
+          - nodejs
+          - npm
+          - nginx
+          - supervisor
+          - chromium-browser
+          - unclutter
+          - xorg
+          - xinit
+          - x11-xserver-utils
+          - i2c-tools
+          - python3-numpy
+          - python3-pil
+          - python3-spidev
+          - python3-rpi.gpio
+          - fbi
+        state: present
+      tags: ['system', 'dependencies']
+    
+    # ============================================
+    # Phase 2: HyperPixel Display Configuration
+    # Based on working install-hyperpixel-bookworm.sh script
+    # ============================================
+    
+    - name: Check OS version for display configuration
+      set_fact:
+        config_path: "{{ '/boot/firmware/config.txt' if os_version in ['bookworm', 'bullseye'] else '/boot/config.txt' }}"
+        overlay_dir: "{{ '/boot/firmware/overlays' if os_version in ['bookworm', 'bullseye'] else '/boot/overlays' }}"
+      tags: ['display']
+    
+    - name: Backup existing boot configuration
+      copy:
+        src: "{{ config_path }}"
+        dest: "{{ config_path }}.backup.{{ ansible_date_time.epoch }}"
+        remote_src: yes
+      tags: ['display', 'backup']
+    
+    # Step 1: Install HyperPixel dependencies
+    - name: Install HyperPixel dependencies
+      apt:
+        name:
+          - git
+          - python3-pip
+          - python3-numpy
+          - python3-pil
+          - python3-spidev
+          - python3-rpi.gpio
+        state: present
+        update_cache: yes
+      when: display_type == 'hyperpixel_round'
+      tags: ['display', 'hyperpixel']
+    
+    # Step 2: Clone and install HyperPixel software
+    - name: Remove old HyperPixel2r directory if exists
+      file:
+        path: /tmp/hyperpixel2r
+        state: absent
+      when: display_type == 'hyperpixel_round'
+      tags: ['display', 'hyperpixel']
+      
+    - name: Clone HyperPixel2r repository
+      git:
+        repo: https://github.com/pimoroni/hyperpixel2r.git
+        dest: /tmp/hyperpixel2r
+        force: yes
+      when: display_type == 'hyperpixel_round'
+      tags: ['display', 'hyperpixel']
+    
+    - name: Run HyperPixel installer (non-interactive)
+      shell: |
+        cd /tmp/hyperpixel2r
+        echo "Y" | sudo ./install.sh || true
+      when: display_type == 'hyperpixel_round'
+      ignore_errors: yes
+      tags: ['display', 'hyperpixel']
+    
+    # Step 3: Apply Bookworm-specific configuration fixes
+    - name: Disable vc4-kms-v3d overlay (conflicts with HyperPixel)
+      replace:
+        path: "{{ config_path }}"
+        regexp: '^(dtoverlay=vc4-kms-v3d)'
+        replace: '#\1 # Disabled for HyperPixel'
+      when: display_type == 'hyperpixel_round'
+      tags: ['display']
+    
+    - name: Disable display auto-detect
+      replace:
+        path: "{{ config_path }}"
+        regexp: '^(display_auto_detect=1)'
+        replace: '#\1 # Disabled for HyperPixel'
+      when: display_type == 'hyperpixel_round'
+      tags: ['display']
+    
+    # Enable required interfaces
+    - name: Enable I2C interface
+      replace:
+        path: "{{ config_path }}"
+        regexp: '^#(dtparam=i2c_arm=on)'
+        replace: '\1'
+      tags: ['display']
+    
+    - name: Enable SPI interface
+      replace:
+        path: "{{ config_path }}"
+        regexp: '^#(dtparam=spi=on)'
+        replace: '\1'
+      tags: ['display']
+    
+    - name: Add I2C if not present
+      lineinfile:
+        path: "{{ config_path }}"
+        line: 'dtparam=i2c_arm=on'
+        create: no
+      when: display_type == 'hyperpixel_round'
+      ignore_errors: yes
+      tags: ['display']
+    
+    - name: Add SPI if not present
+      lineinfile:
+        path: "{{ config_path }}"
+        line: 'dtparam=spi=on'
+        create: no
+      when: display_type == 'hyperpixel_round'
+      ignore_errors: yes
+      tags: ['display']
+    
+    # Step 4: Remove any existing HyperPixel configuration
+    - name: Remove old HyperPixel configuration comments
+      replace:
+        path: "{{ config_path }}"
+        regexp: '# HyperPixel 2\.1 Round.*\n'
+        replace: ''
+      when: display_type == 'hyperpixel_round'
+      ignore_errors: yes
+      tags: ['display']
+    
+    - name: Remove old hyperpixel2r overlay lines
+      lineinfile:
+        path: "{{ config_path }}"
+        regexp: '.*hyperpixel2r.*'
+        state: absent
+      when: display_type == 'hyperpixel_round'
+      tags: ['display']
+    
+    # Add complete HyperPixel configuration
+    - name: Add HyperPixel Round display configuration
+      blockinfile:
+        path: "{{ config_path }}"
+        marker: ""
+        block: |
+          
+          # HyperPixel 2.1 Round Display Configuration
+          dtoverlay=hyperpixel2r
+          enable_dpi_lcd=1
+          dpi_group=2
+          dpi_mode=87
+          dpi_output_format=0x7f216
+          dpi_timings=480 0 10 16 55 480 0 15 60 15 0 0 0 60 0 19200000 6
+          display_rotate=0
+        insertafter: EOF
+      when: display_type == 'hyperpixel_round'
+      tags: ['display', 'hyperpixel']
+    
+    # Step 5: Copy overlay to correct location for Bookworm
+    - name: Check if overlay exists in temp directory
+      stat:
+        path: /tmp/hyperpixel2r/dist/hyperpixel2r.dtbo
+      register: temp_overlay
+      when: display_type == 'hyperpixel_round'
+      tags: ['display', 'hyperpixel']
+    
+    - name: Copy overlay from temp to firmware directory
+      copy:
+        src: /tmp/hyperpixel2r/dist/hyperpixel2r.dtbo
+        dest: "{{ overlay_dir }}/"
+        remote_src: yes
+      when:
+        - display_type == 'hyperpixel_round'
+        - temp_overlay.stat.exists
+      tags: ['display', 'hyperpixel']
+    
+    - name: Check if overlay exists in old boot location
+      stat:
+        path: /boot/overlays/hyperpixel2r.dtbo
+      register: old_overlay
+      when:
+        - display_type == 'hyperpixel_round'
+        - not (temp_overlay.stat.exists | default(false))
+      tags: ['display', 'hyperpixel']
+    
+    - name: Copy overlay from old location to firmware directory
+      copy:
+        src: /boot/overlays/hyperpixel2r.dtbo
+        dest: "{{ overlay_dir }}/"
+        remote_src: yes
+      when:
+        - display_type == 'hyperpixel_round'
+        - old_overlay is defined
+        - old_overlay.stat.exists
+      tags: ['display', 'hyperpixel']
+    
+    # ============================================
+    # Phase 3: Application Deployment
+    # ============================================
+    
+    - name: Ensure app directory exists with correct permissions
+      file:
+        path: /home/{{ ansible_user }}
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: '0755'
+      tags: ['app', 'deploy']
+    
+    - name: Clone or update Pi Analytics Dashboard repository
+      git:
+        repo: https://github.com/jabawack81/pi_analytics_dashboard.git
+        dest: "{{ app_dir }}"
+        version: main
+        force: yes
+      become: no
+      tags: ['app', 'deploy']
+    
+    - name: Create Python virtual environment for backend
+      command:
+        cmd: python3 -m venv venv
+        chdir: "{{ app_dir }}/backend"
+        creates: "{{ app_dir }}/backend/venv"
+      become: no
+      tags: ['app', 'backend']
+    
+    - name: Install Python dependencies (this may take 5-10 minutes)
+      pip:
+        requirements: "{{ app_dir }}/backend/requirements.txt"
+        virtualenv: "{{ app_dir }}/backend/venv"
+      become: no
+      tags: ['app', 'backend']
+    
+    - name: Create empty .env file for first-boot configuration
+      copy:
+        content: |
+          # PostHog configuration will be set up on first boot
+          # Access the device's web interface to configure
+          POSTHOG_API_KEY=
+          POSTHOG_PROJECT_ID=
+          POSTHOG_HOST=https://app.posthog.com
+        dest: "{{ app_dir }}/backend/.env"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: '0600'
+      tags: ['app', 'backend', 'config']
+    
+    - name: Create device_config.json for first-boot setup
+      copy:
+        content: |
+          {
+            "device": {
+              "name": "Pi Analytics Dashboard",
+              "location": "Office",
+              "timezone": "UTC",
+              "last_configured": null,
+              "first_boot": true
+            },
+            "posthog": {
+              "api_key": "",
+              "project_id": "",
+              "host": "https://app.posthog.com"
+            },
+            "display": {
+              "refresh_interval": 30,
+              "theme": "dark",
+              "brightness": 100,
+              "rotation": 0,
+              "screensaver_timeout": 0,
+              "metrics": {
+                "top": {
+                  "type": "events_24h",
+                  "label": "Events",
+                  "enabled": true
+                },
+                "left": {
+                  "type": "unique_users_24h",
+                  "label": "Users",
+                  "enabled": true
+                },
+                "right": {
+                  "type": "page_views_24h",
+                  "label": "Views",
+                  "enabled": true
+                }
+              }
+            },
+            "network": {
+              "wifi_ssid": "",
+              "wifi_password": "",
+              "static_ip": "",
+              "use_dhcp": true,
+              "ap_mode": true,
+              "ap_ssid": "PiAnalytics-Setup",
+              "ap_password": "setupme123"
+            },
+            "advanced": {
+              "debug_mode": false,
+              "log_level": "INFO",
+              "auto_update": true,
+              "backup_enabled": true
+            },
+            "ota": {
+              "enabled": true,
+              "branch": "main",
+              "check_on_boot": true,
+              "auto_pull": false,
+              "last_update": null,
+              "last_check": null
+            }
+          }
+        dest: "{{ app_dir }}/backend/device_config.json"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: '0644'
+      tags: ['app', 'backend', 'config']
+    
+    # Add swap space for Pi Zero W (low memory)
+    - name: Check if swap is enabled
+      command: swapon --show
+      register: swap_status
+      changed_when: false
+      failed_when: false
+      tags: ['app', 'frontend', 'swap']
+    
+    - name: Create swap file if not exists (for Pi Zero W memory issues)
+      block:
+        - name: Create 1GB swap file
+          command: dd if=/dev/zero of=/swapfile bs=1M count=1024
+          args:
+            creates: /swapfile
+        
+        - name: Set swap file permissions
+          file:
+            path: /swapfile
+            mode: '0600'
+        
+        - name: Make swap file
+          command: mkswap /swapfile
+          args:
+            creates: /swapfile
+        
+        - name: Enable swap file
+          command: swapon /swapfile
+          when: swap_status.stdout == ""
+        
+        - name: Add swap to fstab
+          lineinfile:
+            path: /etc/fstab
+            line: '/swapfile none swap sw 0 0'
+            state: present
+      when: swap_status.stdout == ""
+      tags: ['app', 'frontend', 'swap']
+    
+    - name: Install frontend dependencies (this may take 3-5 minutes)
+      npm:
+        path: "{{ app_dir }}/frontend"
+        state: present
+      become: no
+      tags: ['app', 'frontend']
+    
+    - name: Build frontend production files with increased memory limit
+      shell: |
+        export NODE_OPTIONS="--max-old-space-size=384"
+        npm run build
+      args:
+        chdir: "{{ app_dir }}/frontend"
+      become: no
+      tags: ['app', 'frontend']
+    
+    # ============================================
+    # Phase 4: Service Configuration
+    # ============================================
+    
+    - name: Create systemd service for Flask backend
+      template:
+        src: pi-analytics-backend.service.j2
+        dest: /etc/systemd/system/pi-analytics-backend.service
+      tags: ['service', 'backend']
+    
+    - name: Create systemd service for kiosk mode
+      template:
+        src: pi-analytics-kiosk.service.j2
+        dest: /etc/systemd/system/pi-analytics-kiosk.service
+      tags: ['service', 'kiosk']
+    
+    - name: Create kiosk startup script
+      template:
+        src: start-kiosk.sh.j2
+        dest: "{{ app_dir }}/scripts/start-kiosk.sh"
+        mode: '0755'
+      tags: ['service', 'kiosk']
+    
+    - name: Reload systemd daemon
+      systemd:
+        daemon_reload: yes
+      tags: ['service']
+    
+    - name: Enable and start backend service
+      systemd:
+        name: pi-analytics-backend
+        enabled: yes
+        state: started
+      tags: ['service', 'backend']
+    
+    - name: Enable kiosk service (starts on boot)
+      systemd:
+        name: pi-analytics-kiosk
+        enabled: yes
+      tags: ['service', 'kiosk']
+    
+    # ============================================
+    # Phase 5: Network Configuration (Optional)
+    # ============================================
+    
+    - name: Configure WiFi connection
+      template:
+        src: wpa_supplicant.conf.j2
+        dest: /etc/wpa_supplicant/wpa_supplicant.conf
+        mode: '0600'
+      when: wifi_ssid is defined and wifi_password is defined
+      tags: ['network', 'wifi']
+    
+    # ============================================
+    # Phase 6: OTA Updates Configuration
+    # ============================================
+    
+    - name: Create OTA update service
+      template:
+        src: pi-analytics-ota.service.j2
+        dest: /etc/systemd/system/pi-analytics-ota.service
+      tags: ['service', 'ota']
+    
+    - name: Enable OTA update service
+      systemd:
+        name: pi-analytics-ota
+        enabled: yes
+      tags: ['service', 'ota']
+    
+    # ============================================
+    # Phase 7: Final Steps
+    # ============================================
+    
+    - name: Set correct permissions
+      file:
+        path: "{{ app_dir }}"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        recurse: yes
+      tags: ['permissions']
+    
+    - name: Create log directory
+      file:
+        path: /var/log/pi-analytics
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: '0755'
+      tags: ['logs']
+    
+    - name: Display installation summary
+      debug:
+        msg:
+          - "====================================="
+          - "Pi Analytics Dashboard Installation Complete!"
+          - "====================================="
+          - ""
+          - "Application installed at: {{ app_dir }}"
+          - "Backend service: systemctl status pi-analytics-backend"
+          - "Kiosk service: systemctl status pi-analytics-kiosk"
+          - ""
+          - "Access the dashboard at: http://{{ ansible_host }}:5000"
+          - ""
+          - "IMPORTANT: Reboot required for display changes!"
+          - "Run: sudo reboot"
+          - "====================================="
+      tags: ['always']
+    
+  handlers:
+    - name: restart backend
+      systemd:
+        name: pi-analytics-backend
+        state: restarted
+      
+    - name: restart kiosk
+      systemd:
+        name: pi-analytics-kiosk
+        state: restarted

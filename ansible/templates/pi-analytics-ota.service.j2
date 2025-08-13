@@ -1,0 +1,17 @@
+[Unit]
+Description=Pi Analytics Dashboard OTA Update Service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=pi
+Group=pi
+WorkingDirectory={{ app_dir }}
+ExecStart=/usr/bin/python3 {{ app_dir }}/scripts/boot-update.py
+RemainAfterExit=yes
+StandardOutput=append:/var/log/pi-analytics/ota.log
+StandardError=append:/var/log/pi-analytics/ota-error.log
+
+[Install]
+WantedBy=multi-user.target

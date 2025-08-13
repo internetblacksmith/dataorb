@@ -1,0 +1,20 @@
+[Unit]
+Description=Pi Analytics Dashboard Kiosk Mode
+After=network.target pi-analytics-backend.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+Environment="DISPLAY=:0"
+Environment="XAUTHORITY=/home/pi/.Xauthority"
+ExecStartPre=/bin/sleep 10
+ExecStart={{ app_dir }}/scripts/start-kiosk.sh
+Restart=always
+RestartSec=10
+StandardOutput=append:/var/log/pi-analytics/kiosk.log
+StandardError=append:/var/log/pi-analytics/kiosk-error.log
+
+[Install]
+WantedBy=graphical.target

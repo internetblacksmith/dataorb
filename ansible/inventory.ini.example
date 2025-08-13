@@ -1,0 +1,52 @@
+# Pi Analytics Dashboard Ansible Inventory Template
+# Copy this file to inventory.ini and edit with your Raspberry Pi details
+# The inventory.ini file is gitignored to keep your settings private
+
+[pi]
+# Configure your Raspberry Pi connection(s) below
+# You can deploy to MULTIPLE Pis simultaneously by adding multiple lines!
+
+# === SINGLE PI SETUP ===
+# Uncomment and edit ONE of these lines for a single Pi:
+
+# Option 1: Using hostname with password
+#raspberrypi.local ansible_user=pi ansible_ssh_pass=CHANGE_ME
+
+# Option 2: Using IP address with password  
+#192.168.1.100 ansible_user=pi ansible_ssh_pass=CHANGE_ME
+
+# Option 3: Using SSH key (recommended for security)
+#192.168.1.100 ansible_user=pi ansible_ssh_private_key_file=~/.ssh/id_rsa
+
+# === MULTIPLE PI SETUP ===
+# Deploy to multiple Pis at once! Uncomment and edit these lines:
+# Each Pi will get the same application but with its own configuration
+
+# Example: Deploy to 3 Pis simultaneously
+#pi-display-1.local ansible_user=pi ansible_ssh_pass=CHANGE_ME
+#pi-display-2.local ansible_user=pi ansible_ssh_pass=CHANGE_ME  
+#pi-display-3.local ansible_user=pi ansible_ssh_pass=CHANGE_ME
+
+# Or using IP addresses for multiple Pis:
+#192.168.1.101 ansible_user=pi ansible_ssh_pass=password1
+#192.168.1.102 ansible_user=pi ansible_ssh_pass=password2
+#192.168.1.103 ansible_user=pi ansible_ssh_pass=password3
+
+# Mix and match - some with passwords, some with SSH keys:
+#office-pi.local ansible_user=pi ansible_ssh_private_key_file=~/.ssh/id_rsa
+#lobby-pi.local ansible_user=pi ansible_ssh_pass=CHANGE_ME
+#conference-pi.local ansible_user=pi ansible_ssh_private_key_file=~/.ssh/pi_key
+
+# IMPORTANT: Uncomment and edit the lines for YOUR Pi(s) above!
+
+[pi:vars]
+# Python interpreter on Raspberry Pi
+ansible_python_interpreter=/usr/bin/python3
+
+# Display configuration
+display_type=hyperpixel_round
+
+# WiFi Configuration (optional - uncomment and set if needed)
+# wifi_ssid=YourWiFiNetwork
+# wifi_password=YourWiFiPassword
+# wifi_country=US

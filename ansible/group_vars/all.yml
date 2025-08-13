@@ -1,0 +1,35 @@
+---
+# Pi Analytics Dashboard - Global Variables
+# These variables apply to all hosts
+
+# Application settings
+app_name: Pi Analytics Dashboard
+app_version: "1.0"
+app_dir: "/home/{{ ansible_user | default('pi') }}/pi_analytics_dashboard"
+
+# Display settings (can be overridden per host)
+display_type: hyperpixel_round  # Options: hyperpixel_round, hyperpixel_square, hdmi
+display_width: 480
+display_height: 480
+
+# PostHog Configuration
+# IMPORTANT: Use ansible-vault to encrypt sensitive data
+# Run: ansible-vault encrypt_string 'your-api-key' --name 'vault_posthog_api_key'
+vault_posthog_api_key: ""
+vault_posthog_project_id: ""
+vault_posthog_host: "https://app.posthog.com"
+
+# Network settings (optional)
+# wifi_ssid: ""
+# wifi_password: ""
+# wifi_country: "US"
+
+# OTA Update settings
+ota_enabled: true
+ota_branch: main
+ota_check_on_boot: true
+ota_auto_pull: false
+
+# Logging
+log_level: INFO
+log_dir: /var/log/pi-analytics
