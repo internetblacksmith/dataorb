@@ -22,6 +22,9 @@ cd pi_analytics_dashboard/ansible
 - Ansible 2.9+ (installed automatically by deploy.sh)
 - SSH access to Raspberry Pi
 - Git
+- Optional: `sshpass` for password-based authentication with rsync
+  - Install with: `sudo apt-get install sshpass` (Ubuntu/Debian)
+  - Or use SSH keys instead (recommended)
 
 ### On Raspberry Pi
 - Raspberry Pi OS (Bookworm or Buster)

@@ -29,6 +29,7 @@ const App: React.FC = () => {
   );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [deviceIP, setDeviceIP] = useState<string>('[device-ip]');
 
   const fetchStats = async () => {
     try {
@@ -62,8 +63,68 @@ const App: React.FC = () => {
   useEffect(() => {
     fetchStats();
     fetchDisplayConfig();
-    const interval = setInterval(fetchStats, 30000); // Refresh every 30 seconds
-    return () => clearInterval(interval);
+    
+    // Get device IP address for display
+    fetch('/api/admin/config')
+      .then(res => res.json())
+      .then(data => {
+        if (data.network?.ip_address) {
+          setDeviceIP(data.network.ip_address);
+        }
+      })
+      .catch(() => {
+        // Try to get IP from window location if not localhost
+        const hostname = window.location.hostname;
+        if (hostname && hostname !== 'localhost' && hostname !== '127.0.0.1') {
+          setDeviceIP(hostname);
+        }
+      });
+    
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchStats, 30000);
+    
+    // Listen for configuration updates via localStorage
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'posthog_config_updated') {
+        // Configuration was updated, reload the page
+        window.location.reload();
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Listen for configuration updates via BroadcastChannel
+    let channel: BroadcastChannel | undefined;
+    if ('BroadcastChannel' in window) {
+      channel = new BroadcastChannel('posthog_config');
+      channel.onmessage = (event) => {
+        if (event.data?.action === 'reload') {
+          // Configuration was updated, reload the page
+          window.location.reload();
+        }
+      };
+    }
+    
+    // Also check periodically if config was updated (fallback for cross-origin)
+    const configCheckInterval = setInterval(() => {
+      const lastUpdate = localStorage.getItem('posthog_config_updated');
+      const lastCheck = localStorage.getItem('posthog_config_last_check');
+      
+      if (lastUpdate && lastCheck && parseInt(lastUpdate) > parseInt(lastCheck)) {
+        localStorage.setItem('posthog_config_last_check', lastUpdate);
+        window.location.reload();
+      } else if (lastUpdate && !lastCheck) {
+        localStorage.setItem('posthog_config_last_check', lastUpdate);
+      }
+    }, 5000); // Check every 5 seconds
+    
+    return () => {
+      clearInterval(interval);
+      clearInterval(configCheckInterval);
+      window.removeEventListener('storage', handleStorageChange);
+      if (channel) {
+        channel.close();
+      }
+    };
   }, []);
 
   const formatTime = (timestamp: string): string => {
@@ -93,6 +154,91 @@ const App: React.FC = () => {
   }
 
   if (error) {
+    // Check if accessing from localhost (LCD display) or remote (PC)
+    const isLocalDisplay = window.location.hostname === 'localhost' || 
+                          window.location.hostname === '127.0.0.1';
+    
+    // Auto-redirect only if accessing from remote PC
+    if (!isLocalDisplay) {
+      if (error.includes('PostHog credentials not configured')) {
+        window.location.href = '/config';
+        return (
+          <div className="app loading">
+            <div className="loading-spinner"></div>
+            <p>Redirecting to configuration...</p>
+          </div>
+        );
+      }
+      
+      if (error.includes('401')) {
+        window.location.href = '/config?error=401';
+        return (
+          <div className="app loading">
+            <div className="loading-spinner"></div>
+            <p>Authentication error - redirecting to configuration...</p>
+          </div>
+        );
+      }
+      
+      if (error.includes('403')) {
+        window.location.href = '/config?error=403';
+        return (
+          <div className="app loading">
+            <div className="loading-spinner"></div>
+            <p>Permission error - redirecting to configuration...</p>
+          </div>
+        );
+      }
+    }
+    
+    // Show configuration message on LCD display
+    if (error.includes('PostHog credentials not configured') || 
+        error.includes('401') || 
+        error.includes('403')) {
+      return (
+        <div className="app">
+          <div className="circular-container">
+            <div className="center-logo">
+              <div className="logo-text">PostHog</div>
+              <div className="logo-subtitle">Setup Required</div>
+            </div>
+            
+            <div className="config-message" style={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              textAlign: 'center',
+              padding: '20px',
+              maxWidth: '80%'
+            }}>
+              <h2 style={{ color: '#1d4aff', marginBottom: '20px' }}>Configuration Needed</h2>
+              <p style={{ fontSize: '18px', marginBottom: '15px' }}>
+                Visit this device's IP address from your computer:
+              </p>
+              <div style={{ 
+                background: '#1e293b', 
+                padding: '15px', 
+                borderRadius: '10px',
+                fontSize: '20px',
+                fontFamily: 'monospace',
+                marginBottom: '15px'
+              }}>
+                http://{deviceIP}:5000/config
+              </div>
+              <p style={{ fontSize: '14px', color: '#94a3b8' }}>
+                {error.includes('401') && 'Invalid API key'}
+                {error.includes('403') && 'Permission error - check project access'}
+                {error.includes('not configured') && 'PostHog credentials required'}
+              </p>
+            </div>
+            
+            <div className="outer-ring"></div>
+          </div>
+        </div>
+      );
+    }
+    
     return (
       <div className="app error">
         <h2>Error</h2>

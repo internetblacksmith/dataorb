@@ -5,12 +5,12 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=pi
-Group=pi
+User={{ ansible_user }}
+Group={{ ansible_user }}
 Environment="DISPLAY=:0"
-Environment="XAUTHORITY=/home/pi/.Xauthority"
+Environment="XAUTHORITY=/home/{{ ansible_user }}/.Xauthority"
 ExecStartPre=/bin/sleep 10
-ExecStart={{ app_dir }}/scripts/start-kiosk.sh
+ExecStart={{ app_dir }}/start-kiosk.sh
 Restart=always
 RestartSec=10
 StandardOutput=append:/var/log/pi-analytics/kiosk.log

@@ -5,8 +5,8 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=pi
-Group=pi
+User={{ ansible_user }}
+Group={{ ansible_user }}
 WorkingDirectory={{ app_dir }}/backend
 Environment="PATH={{ app_dir }}/backend/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 ExecStart={{ app_dir }}/backend/venv/bin/python {{ app_dir }}/backend/app.py

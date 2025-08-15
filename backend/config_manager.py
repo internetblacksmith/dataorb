@@ -48,45 +48,54 @@ class ConfigManager:
             "advanced": {
                 "debug_mode": False,
                 "log_level": "INFO",
-                "auto_update": True,
-                "backup_enabled": True,
+                "enable_telemetry": False,
             },
             "ota": {
                 "enabled": True,
                 "branch": "main",
                 "check_on_boot": True,
-                "auto_pull": True,
+                "auto_pull": False,
                 "last_update": None,
                 "last_check": None,
+                "update_schedule": "0 3 * * *",  # Default: 3 AM daily
+                "backup_before_update": True,
+                "max_backups": 5,
             },
         }
-        self.load_config()
+        self.config = self.load_config()
 
     def load_config(self) -> Dict[str, Any]:
-        """Load configuration from file"""
-        try:
-            if os.path.exists(self.config_file):
+        """Load configuration from file or create with defaults"""
+        if os.path.exists(self.config_file):
+            try:
                 with open(self.config_file, "r") as f:
                     loaded_config = json.load(f)
                     # Merge with defaults to ensure all keys exist
-                    self.config = self._merge_configs(
-                        self.default_config, loaded_config
-                    )
+                    return self._merge_configs(self.default_config, loaded_config)
+            except Exception as e:
+                print(f"Error loading config: {e}")
+                return self.default_config.copy()
+        else:
+            # Create new config file with defaults
+            self.save_config(self.default_config)
+            return self.default_config.copy()
+
+    def _merge_configs(self, default: Dict, loaded: Dict) -> Dict:
+        """Recursively merge loaded config with defaults"""
+        result = default.copy()
+        for key, value in loaded.items():
+            if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+                result[key] = self._merge_configs(result[key], value)
             else:
-                self.config = self.default_config.copy()
-                self.save_config()
-        except Exception as e:
-            print(f"Error loading config: {e}")
-            self.config = self.default_config.copy()
+                result[key] = value
+        return result
 
-        return self.config
-
-    def save_config(self) -> bool:
+    def save_config(self, config: Dict[str, Any] = None) -> bool:
         """Save configuration to file"""
         try:
-            self.config["device"]["last_configured"] = datetime.now().isoformat()
+            config_to_save = config if config is not None else self.config
             with open(self.config_file, "w") as f:
-                json.dump(self.config, f, indent=2)
+                json.dump(config_to_save, f, indent=2)
             return True
         except Exception as e:
             print(f"Error saving config: {e}")
@@ -96,89 +105,44 @@ class ConfigManager:
         """Get current configuration"""
         return self.config
 
-    def get_section(self, section: str) -> Dict[str, Any]:
-        """Get specific configuration section"""
-        return self.config.get(section, {})
-
     def update_config(self, updates: Dict[str, Any]) -> bool:
         """Update configuration with new values"""
         try:
+            # Update timestamp
+            if "device" not in updates:
+                updates["device"] = {}
+            updates["device"]["last_configured"] = datetime.now().isoformat()
+
+            # Merge updates with current config
             self.config = self._merge_configs(self.config, updates)
             return self.save_config()
         except Exception as e:
             print(f"Error updating config: {e}")
             return False
 
-    def update_section(self, section: str, updates: Dict[str, Any]) -> bool:
-        """Update specific configuration section"""
+    def get_posthog_config(self) -> Dict[str, str]:
+        """Get PostHog configuration"""
+        return self.config.get("posthog", {})
+
+    def get_display_config(self) -> Dict[str, Any]:
+        """Get display configuration"""
+        return self.config.get("display", {})
+
+    def get_network_config(self) -> Dict[str, Any]:
+        """Get network configuration"""
+        return self.config.get("network", {})
+
+    def get_ota_config(self) -> Dict[str, Any]:
+        """Get OTA configuration"""
+        return self.config.get("ota", {})
+
+    def update_ota_config(self, updates: Dict[str, Any]) -> bool:
+        """Update OTA configuration"""
         try:
-            if section in self.config:
-                self.config[section].update(updates)
-            else:
-                self.config[section] = updates
+            if "ota" not in self.config:
+                self.config["ota"] = {}
+            self.config["ota"].update(updates)
             return self.save_config()
         except Exception as e:
-            print(f"Error updating section {section}: {e}")
+            print(f"Error updating OTA config: {e}")
             return False
-
-    def reset_to_defaults(self) -> bool:
-        """Reset configuration to defaults"""
-        self.config = self.default_config.copy()
-        return self.save_config()
-
-    def export_config(self) -> str:
-        """Export configuration as JSON string"""
-        return json.dumps(self.config, indent=2)
-
-    def import_config(self, config_json: str) -> bool:
-        """Import configuration from JSON string"""
-        try:
-            imported_config = json.loads(config_json)
-            self.config = self._merge_configs(self.default_config, imported_config)
-            return self.save_config()
-        except Exception as e:
-            print(f"Error importing config: {e}")
-            return False
-
-    def validate_posthog_config(self) -> Dict[str, Any]:
-        """Validate PostHog configuration"""
-        posthog_config = self.get_section("posthog")
-        errors = []
-
-        if not posthog_config.get("api_key"):
-            errors.append("API key is required")
-
-        if not posthog_config.get("project_id"):
-            errors.append("Project ID is required")
-
-        if not posthog_config.get("host"):
-            errors.append("Host URL is required")
-
-        return {"valid": len(errors) == 0, "errors": errors}
-
-    def get_env_vars(self) -> Dict[str, str]:
-        """Get environment variables for PostHog"""
-        posthog_config = self.get_section("posthog")
-        return {
-            "POSTHOG_API_KEY": posthog_config.get("api_key", ""),
-            "POSTHOG_PROJECT_ID": posthog_config.get("project_id", ""),
-            "POSTHOG_HOST": posthog_config.get("host", "https://app.posthog.com"),
-        }
-
-    def _merge_configs(
-        self, base: Dict[str, Any], update: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """Recursively merge configuration dictionaries"""
-        result = base.copy()
-
-        for key, value in update.items():
-            if (
-                key in result
-                and isinstance(result[key], dict)
-                and isinstance(value, dict)
-            ):
-                result[key] = self._merge_configs(result[key], value)
-            else:
-                result[key] = value
-
-        return result
