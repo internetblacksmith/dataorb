@@ -140,30 +140,15 @@ const SetupPage: React.FC = () => {
       <div className="setup-header">
         <div className="setup-logo">
           <div className="logo-circle">
-            <div className="logo-text">PostHog</div>
-            <div className="logo-subtitle">Pi</div>
+            <div className="logo-text">DataOrb</div>
+            <div className="logo-subtitle">Setup</div>
           </div>
         </div>
-        <h1>Welcome to PostHog Pi</h1>
-        <p>Your PostHog analytics dashboard is ready to configure</p>
+        <h1>Welcome to DataOrb</h1>
+        <p>Let's connect your analytics dashboard to the internet</p>
       </div>
 
       <div className="setup-status">
-        {networkStatus?.ap_active && (
-          <div className="status-card ap-active">
-            <div className="status-icon">📶</div>
-            <div className="status-info">
-              <h3>Setup Mode Active</h3>
-              <p>
-                Connected to: <strong>PostHog-Pi-Setup</strong>
-              </p>
-              <p>
-                Setup URL: <strong>http://192.168.4.1:5000</strong>
-              </p>
-            </div>
-          </div>
-        )}
-
         {networkStatus?.network_connected ? (
           <div className="status-card connected">
             <div className="status-icon">✅</div>
@@ -172,14 +157,15 @@ const SetupPage: React.FC = () => {
               <p>
                 Connected to: <strong>{networkStatus.wifi_status.ssid}</strong>
               </p>
+              <p>Your DataOrb is online and ready!</p>
             </div>
           </div>
         ) : (
           <div className="status-card disconnected">
-            <div className="status-icon">❌</div>
+            <div className="status-icon">🔌</div>
             <div className="status-info">
-              <h3>No Network Connection</h3>
-              <p>Connect to WiFi to start using your dashboard</p>
+              <h3>No Internet Connection</h3>
+              <p>Click below to connect to your WiFi network</p>
             </div>
           </div>
         )}
@@ -191,34 +177,28 @@ const SetupPage: React.FC = () => {
           disabled={loading}
           className="setup-button primary"
         >
-          {loading ? 'Scanning...' : 'Setup WiFi Connection'}
+          {loading ? 'Scanning...' : 'Connect to WiFi Network'}
         </button>
 
         <button
           onClick={() => (window.location.href = '/config')}
           className="setup-button secondary"
         >
-          Advanced Configuration
+          Configure DataOrb Settings
         </button>
       </div>
 
-      <div className="setup-instructions">
-        <h3>Setup Instructions</h3>
-        <ol>
-          <li>
-            Connect your device to the <strong>PostHog-Pi-Setup</strong> WiFi
-            network
-          </li>
-          <li>
-            Password: <strong>posthog123</strong>
-          </li>
-          <li>
-            Open your browser and navigate to{' '}
-            <strong>http://192.168.4.1:5000</strong>
-          </li>
-          <li>Follow the setup wizard to configure your WiFi</li>
-        </ol>
-      </div>
+      {networkStatus?.network_connected && (
+        <div className="setup-instructions">
+          <h3>Next Steps</h3>
+          <ol>
+            <li>Click "Configure DataOrb Settings" above</li>
+            <li>Enter your PostHog API credentials</li>
+            <li>Customize your dashboard display</li>
+            <li>Start viewing your analytics!</li>
+          </ol>
+        </div>
+      )}
     </div>
   );
 
@@ -301,7 +281,7 @@ const SetupPage: React.FC = () => {
       <div className="setup-header">
         <div className="success-icon">✅</div>
         <h1>Setup Complete!</h1>
-        <p>Your PostHog Pi is now connected to the internet</p>
+        <p>Your DataOrb is now connected to the internet</p>
       </div>
 
       <div className="success-info">

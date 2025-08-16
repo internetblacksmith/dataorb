@@ -30,6 +30,9 @@ frontend/build/
 .env.production.local
 backend/.env
 
+# Device configuration (contains API keys and custom themes)
+backend/device_config.json
+
 # IDE
 .vscode/
 .idea/

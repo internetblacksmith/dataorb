@@ -1,0 +1,81 @@
+/* CSS Variables for theming */
+:root {
+  /* Default dark theme */
+  --bg-gradient: linear-gradient(135deg, #444444 0%, #2a2a2a 100%);
+  --container-bg: radial-gradient(circle, #444444 0%, #2a2a2a 100%);
+  --text-color: #ffffff;
+  --text-secondary: #b4b4b4;
+  --accent: #f44c04;
+  --accent-secondary: #6e8cf9;
+  --border: rgba(244, 76, 4, 0.5);
+  --shadow: rgba(244, 76, 4, 0.3);
+  --stat-bg: linear-gradient(135deg, rgba(244, 76, 4, 0.2) 0%, rgba(110, 140, 249, 0.2) 100%);
+  --stat-border: rgba(244, 76, 4, 0.4);
+  --stat-value: linear-gradient(135deg, #f44c04 0%, #6e8cf9 100%);
+  --stat-label: #b4b4b4;
+  --status-dot: #10b981;
+  --glow-primary: rgba(244, 76, 4, 0.5);
+  --glow-secondary: rgba(110, 140, 249, 0.1);
+}
+
+/* Apply CSS variables to elements */
+.app {
+  background: var(--bg-gradient);
+  color: var(--text-color);
+}
+
+.circular-container {
+  background: var(--container-bg);
+  box-shadow:
+    0 0 50px var(--shadow),
+    inset 0 0 50px var(--glow-secondary);
+  border: 3px solid var(--border);
+}
+
+.stat-circle {
+  background: var(--stat-bg);
+  border: 2px solid var(--stat-border);
+  box-shadow: 0 4px 15px var(--shadow);
+}
+
+.stat-value {
+  background: var(--stat-value);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.stat-label {
+  color: var(--stat-label);
+}
+
+.logo-text {
+  background: var(--stat-value);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 0 20px var(--glow-primary);
+}
+
+.logo-subtitle {
+  color: var(--text-secondary);
+}
+
+.status-dot.active {
+  background: var(--status-dot);
+}
+
+.last-updated {
+  color: var(--text-secondary);
+}
+
+.bottom-info {
+  color: var(--text-secondary);
+}
+
+.outer-ring {
+  border: 2px solid var(--border);
+  box-shadow: 
+    0 0 30px var(--glow-primary),
+    inset 0 0 30px var(--glow-secondary);
+}

@@ -1,12 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import './ConfigPage.css';
+import './themes.css';
 
 interface DeviceConfig {
-  device: {
-    name: string;
-    location: string;
-    timezone: string;
-  };
   posthog: {
     api_key: string;
     project_id: string;
@@ -53,31 +49,6 @@ interface AvailableMetrics {
   };
 }
 
-interface DeviceInfo {
-  device: {
-    name: string;
-    location: string;
-    last_configured: string | null;
-  };
-  system: {
-    platform: string;
-    platform_version?: string;
-    architecture?: string;
-    hostname: string;
-    python_version: string;
-  };
-  performance: {
-    cpu_percent?: number;
-    memory_percent?: number;
-    memory_used_gb?: number;
-    memory_total_gb?: number;
-    disk_percent?: number;
-    disk_free_gb?: number;
-    disk_total_gb?: number;
-    error?: string;
-  };
-}
-
 interface OTAStatus {
   enabled: boolean;
   current_branch: string;
@@ -93,14 +64,17 @@ interface OTAStatus {
 
 const ConfigPage: React.FC = () => {
   const [config, setConfig] = useState<DeviceConfig | null>(null);
-  const [deviceInfo, setDeviceInfo] = useState<DeviceInfo | null>(null);
   const [otaStatus, setOtaStatus] = useState<OTAStatus | null>(null);
   const [availableMetrics, setAvailableMetrics] = useState<AvailableMetrics>(
     {},
   );
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState('device');
+  const [activeTab, setActiveTab] = useState(() => {
+    // Get initial tab from URL hash or default to 'posthog'
+    const hash = window.location.hash.slice(1);
+    return hash || 'posthog';
+  });
   const [message, setMessage] = useState<{
     type: 'success' | 'error';
     text: string;
@@ -108,15 +82,37 @@ const ConfigPage: React.FC = () => {
   const [testingConnection, setTestingConnection] = useState(false);
   const [checkingUpdates, setCheckingUpdates] = useState(false);
   const [updating, setUpdating] = useState(false);
+  const [themes, setThemes] = useState<any[]>([]);
+  const [showThemeImport, setShowThemeImport] = useState(false);
 
   const API_BASE = process.env.REACT_APP_API_URL || '';
 
   useEffect(() => {
     loadConfig();
-    loadDeviceInfo();
     loadOTAStatus();
     loadAvailableMetrics();
+    loadThemes();
   }, []);
+
+  // Handle browser back/forward navigation
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.slice(1);
+      if (hash && ['posthog', 'display', 'network', 'advanced', 'ota'].includes(hash)) {
+        setActiveTab(hash);
+      }
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  // Apply theme when config changes
+  useEffect(() => {
+    if (config?.display?.theme) {
+      applyTheme(config.display.theme);
+    }
+  }, [config?.display?.theme]);
 
   const loadConfig = async () => {
     try {
@@ -130,15 +126,6 @@ const ConfigPage: React.FC = () => {
     }
   };
 
-  const loadDeviceInfo = async () => {
-    try {
-      const response = await fetch(`${API_BASE}/api/admin/device/info`);
-      const data = await response.json();
-      setDeviceInfo(data);
-    } catch (error) {
-      console.error('Failed to load device info:', error);
-    }
-  };
 
   const loadOTAStatus = async () => {
     try {
@@ -150,6 +137,120 @@ const ConfigPage: React.FC = () => {
     }
   };
 
+  const loadThemes = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/api/themes`);
+      const data = await response.json();
+      setThemes(data);
+    } catch (error) {
+      console.error('Failed to load themes:', error);
+    }
+  };
+
+  const applyTheme = async (themeId: string) => {
+    // If it's a custom theme, fetch its colors
+    if (themeId && !['dark', 'light'].includes(themeId)) {
+      try {
+        const response = await fetch(`${API_BASE}/api/themes/${themeId}`);
+        if (response.ok) {
+          const themeData = await response.json();
+          if (themeData.colors) {
+            // Apply custom theme colors as CSS variables
+            const root = document.documentElement;
+            root.style.setProperty('--bg-gradient', themeData.colors.background);
+            root.style.setProperty('--container-bg', themeData.colors.containerBg);
+            root.style.setProperty('--text-color', themeData.colors.text);
+            root.style.setProperty('--text-secondary', themeData.colors.textSecondary);
+            root.style.setProperty('--accent', themeData.colors.accent);
+            root.style.setProperty('--accent-secondary', themeData.colors.accentSecondary);
+            root.style.setProperty('--border', themeData.colors.border);
+            root.style.setProperty('--shadow', themeData.colors.shadow);
+            root.style.setProperty('--stat-bg', themeData.colors.statBg);
+            root.style.setProperty('--stat-border', themeData.colors.statBorder);
+            root.style.setProperty('--stat-value', themeData.colors.statValue);
+            root.style.setProperty('--stat-label', themeData.colors.statLabel);
+            root.style.setProperty('--status-dot', themeData.colors.statusDot);
+            root.style.setProperty('--glow-primary', themeData.colors.glowPrimary);
+            root.style.setProperty('--glow-secondary', themeData.colors.glowSecondary);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load custom theme:', err);
+      }
+    } else {
+      // For built-in themes, just set the data-theme attribute
+      document.documentElement.setAttribute('data-theme', themeId);
+    }
+  };
+
+  const exportTheme = async (themeId: string) => {
+    try {
+      const response = await fetch(`${API_BASE}/api/themes/${themeId}/export`);
+      const data = await response.json();
+      
+      // Create a download link
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `theme-${themeId}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      showMessage('success', 'Theme exported successfully');
+    } catch (error) {
+      showMessage('error', 'Failed to export theme');
+    }
+  };
+
+  const importTheme = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const themeData = JSON.parse(text);
+      
+      const response = await fetch(`${API_BASE}/api/themes/import`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(themeData),
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        showMessage('success', 'Theme imported successfully');
+        loadThemes();
+      } else {
+        showMessage('error', result.error || 'Failed to import theme');
+      }
+    } catch (error) {
+      showMessage('error', 'Invalid theme file');
+    }
+  };
+
+  const deleteTheme = async (themeId: string) => {
+    if (!window.confirm('Are you sure you want to delete this theme?')) return;
+
+    try {
+      const response = await fetch(`${API_BASE}/api/themes/custom/${themeId}`, {
+        method: 'DELETE',
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        showMessage('success', 'Theme deleted successfully');
+        loadThemes();
+      } else {
+        showMessage('error', result.error || 'Failed to delete theme');
+      }
+    } catch (error) {
+      showMessage('error', 'Failed to delete theme');
+    }
+  };
+
   const loadAvailableMetrics = async () => {
     try {
       const response = await fetch(`${API_BASE}/api/metrics/available`);
@@ -157,6 +258,37 @@ const ConfigPage: React.FC = () => {
       setAvailableMetrics(data);
     } catch (error) {
       console.error('Failed to load available metrics:', error);
+      // Set default metrics if API fails
+      setAvailableMetrics({
+        events_24h: {
+          label: "Events (24h)",
+          description: "Total events in the last 24 hours"
+        },
+        unique_users_24h: {
+          label: "Users (24h)",
+          description: "Unique users in the last 24 hours"
+        },
+        page_views_24h: {
+          label: "Page Views (24h)",
+          description: "Page view events in the last 24 hours"
+        },
+        custom_events_24h: {
+          label: "Custom Events (24h)",
+          description: "Non-pageview events in the last 24 hours"
+        },
+        sessions_24h: {
+          label: "Sessions (24h)",
+          description: "Unique sessions in the last 24 hours"
+        },
+        events_1h: {
+          label: "Events (1h)",
+          description: "Events in the last hour"
+        },
+        avg_events_per_user: {
+          label: "Avg Events/User",
+          description: "Average events per user in the last 24 hours"
+        }
+      });
     }
   };
 
@@ -174,7 +306,14 @@ const ConfigPage: React.FC = () => {
       const result = await response.json();
       if (result.success) {
         showMessage('success', 'Configuration saved successfully');
-        loadDeviceInfo(); // Refresh device info
+        // Trigger a refresh on the dashboard
+        if ('BroadcastChannel' in window) {
+          const channel = new BroadcastChannel('posthog_config');
+          channel.postMessage({ action: 'reload' });
+          channel.close();
+        }
+        // Also set localStorage for cross-origin fallback
+        localStorage.setItem('posthog_config_updated', Date.now().toString());
       } else {
         showMessage('error', result.error || 'Failed to save configuration');
       }
@@ -323,6 +462,11 @@ const ConfigPage: React.FC = () => {
     setTimeout(() => setMessage(null), 5000);
   };
 
+  const handleTabChange = (tabId: string) => {
+    setActiveTab(tabId);
+    window.location.hash = tabId;
+  };
+
   const updateConfig = (
     section: keyof DeviceConfig,
     field: string,
@@ -340,13 +484,11 @@ const ConfigPage: React.FC = () => {
   };
 
   const tabs = [
-    { id: 'device', label: 'Device', icon: '🔧' },
     { id: 'posthog', label: 'PostHog', icon: '📊' },
     { id: 'display', label: 'Display', icon: '🖥️' },
     { id: 'network', label: 'Network', icon: '🌐' },
     { id: 'advanced', label: 'Advanced', icon: '⚙️' },
     { id: 'ota', label: 'Updates', icon: '🔄' },
-    { id: 'info', label: 'System Info', icon: 'ℹ️' },
   ];
 
   if (loading) {
@@ -371,7 +513,7 @@ const ConfigPage: React.FC = () => {
   return (
     <div className="config-page">
       <header className="config-header">
-        <h1>📱 PostHog Pi Configuration</h1>
+        <h1>⚙️ DataOrb Configuration</h1>
         <div className="header-actions">
           <button
             onClick={() => (window.location.href = '/')}
@@ -406,7 +548,7 @@ const ConfigPage: React.FC = () => {
             <button
               key={tab.id}
               className={`tab ${activeTab === tab.id ? 'active' : ''}`}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => handleTabChange(tab.id)}
             >
               <span className="tab-icon">{tab.icon}</span>
               <span className="tab-label">{tab.label}</span>
@@ -415,52 +557,6 @@ const ConfigPage: React.FC = () => {
         </nav>
 
         <div className="config-panel">
-          {activeTab === 'device' && (
-            <div className="config-section">
-              <h2>Device Settings</h2>
-              <div className="form-group">
-                <label>Device Name</label>
-                <input
-                  type="text"
-                  value={config.device.name}
-                  onChange={(e) =>
-                    updateConfig('device', 'name', e.target.value)
-                  }
-                  placeholder="PostHog Pi Dashboard"
-                />
-              </div>
-              <div className="form-group">
-                <label>Location</label>
-                <input
-                  type="text"
-                  value={config.device.location}
-                  onChange={(e) =>
-                    updateConfig('device', 'location', e.target.value)
-                  }
-                  placeholder="Office, Living Room, etc."
-                />
-              </div>
-              <div className="form-group">
-                <label>Timezone</label>
-                <select
-                  value={config.device.timezone}
-                  onChange={(e) =>
-                    updateConfig('device', 'timezone', e.target.value)
-                  }
-                >
-                  <option value="UTC">UTC</option>
-                  <option value="America/New_York">Eastern Time</option>
-                  <option value="America/Chicago">Central Time</option>
-                  <option value="America/Denver">Mountain Time</option>
-                  <option value="America/Los_Angeles">Pacific Time</option>
-                  <option value="Europe/London">London</option>
-                  <option value="Europe/Paris">Paris</option>
-                  <option value="Asia/Tokyo">Tokyo</option>
-                </select>
-              </div>
-            </div>
-          )}
-
           {activeTab === 'posthog' && (
             <div className="config-section">
               <h2>PostHog Configuration</h2>
@@ -487,16 +583,44 @@ const ConfigPage: React.FC = () => {
                 />
               </div>
               <div className="form-group">
-                <label>Host URL</label>
-                <input
-                  type="url"
-                  value={config.posthog.host}
-                  onChange={(e) =>
-                    updateConfig('posthog', 'host', e.target.value)
+                <label>PostHog Host</label>
+                <select
+                  value={
+                    config.posthog.host === 'https://app.posthog.com' ||
+                    config.posthog.host === 'https://eu.posthog.com'
+                      ? config.posthog.host
+                      : 'custom'
                   }
-                  placeholder="https://app.posthog.com"
-                />
+                  onChange={(e) => {
+                    if (e.target.value === 'custom') {
+                      // Don't change the host value, just show the custom input
+                      updateConfig('posthog', 'host', config.posthog.host || 'https://');
+                    } else {
+                      updateConfig('posthog', 'host', e.target.value);
+                    }
+                  }}
+                >
+                  <option value="https://app.posthog.com">PostHog Cloud (US)</option>
+                  <option value="https://eu.posthog.com">PostHog Cloud (EU)</option>
+                  <option value="custom">Self-hosted / Custom</option>
+                </select>
               </div>
+              {(config.posthog.host !== 'https://app.posthog.com' &&
+                config.posthog.host !== 'https://eu.posthog.com') && (
+                <div className="form-group">
+                  <label>Custom Host URL</label>
+                  <input
+                    type="url"
+                    value={config.posthog.host}
+                    onChange={(e) =>
+                      updateConfig('posthog', 'host', e.target.value)
+                    }
+                    placeholder="https://posthog.example.com"
+                    required
+                  />
+                  <small>Enter the URL of your self-hosted PostHog instance</small>
+                </div>
+              )}
               <button
                 onClick={testPostHogConnection}
                 disabled={testingConnection}
@@ -526,19 +650,69 @@ const ConfigPage: React.FC = () => {
                   }
                 />
               </div>
-              <div className="form-group">
-                <label>Theme</label>
-                <select
-                  value={config.display.theme}
-                  onChange={(e) =>
-                    updateConfig('display', 'theme', e.target.value)
-                  }
-                >
-                  <option value="dark">Dark</option>
-                  <option value="light">Light</option>
-                </select>
+              
+              <h3>Theme Settings</h3>
+              
+              <div className="theme-actions">
+                <label className="btn-secondary" style={{ cursor: 'pointer' }}>
+                  📤 Import Theme
+                  <input
+                    type="file"
+                    accept=".json"
+                    onChange={importTheme}
+                    style={{ display: 'none' }}
+                  />
+                </label>
               </div>
-              <div className="form-group">
+
+              <div className="theme-list">
+                <div className="theme-grid">
+                  {themes.map((theme) => (
+                    <div 
+                      key={theme.id} 
+                      className={`theme-card ${config.display.theme === theme.id ? 'active' : ''}`}
+                    >
+                      <h5>{theme.name} {theme.isCustom && <span className="custom-badge">Custom</span>}</h5>
+                      <p>{theme.description}</p>
+                      <div className="theme-card-actions">
+                        {config.display.theme === theme.id ? (
+                          <button
+                            className="btn-icon selected"
+                            disabled
+                          >
+                            ✓ Selected
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => updateConfig('display', 'theme', theme.id)}
+                            className="btn-icon select"
+                          >
+                            Select
+                          </button>
+                        )}
+                        <button
+                          onClick={() => exportTheme(theme.id)}
+                          title="Export theme"
+                          className="btn-icon"
+                        >
+                          📥 Export
+                        </button>
+                        {theme.isCustom && (
+                          <button
+                            onClick={() => deleteTheme(theme.id)}
+                            title="Delete theme"
+                            className="btn-icon delete"
+                          >
+                            🗑️ Delete
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="form-group" style={{ marginTop: '20px' }}>
                 <label>Brightness (%)</label>
                 <input
                   type="range"
@@ -916,75 +1090,6 @@ const ConfigPage: React.FC = () => {
             </div>
           )}
 
-          {activeTab === 'info' && deviceInfo && (
-            <div className="config-section">
-              <h2>System Information</h2>
-              <div className="info-grid">
-                <div className="info-card">
-                  <h3>Device</h3>
-                  <p>
-                    <strong>Name:</strong> {deviceInfo.device.name}
-                  </p>
-                  <p>
-                    <strong>Location:</strong> {deviceInfo.device.location}
-                  </p>
-                  <p>
-                    <strong>Last Configured:</strong>{' '}
-                    {deviceInfo.device.last_configured
-                      ? new Date(
-                          deviceInfo.device.last_configured,
-                        ).toLocaleString()
-                      : 'Never'}
-                  </p>
-                </div>
-
-                <div className="info-card">
-                  <h3>System</h3>
-                  <p>
-                    <strong>Platform:</strong> {deviceInfo.system.platform}
-                  </p>
-                  <p>
-                    <strong>Hostname:</strong> {deviceInfo.system.hostname}
-                  </p>
-                  <p>
-                    <strong>Python:</strong> {deviceInfo.system.python_version}
-                  </p>
-                  {deviceInfo.system.architecture && (
-                    <p>
-                      <strong>Architecture:</strong>{' '}
-                      {deviceInfo.system.architecture}
-                    </p>
-                  )}
-                </div>
-
-                <div className="info-card">
-                  <h3>Performance</h3>
-                  {deviceInfo.performance.error ? (
-                    <p className="error">{deviceInfo.performance.error}</p>
-                  ) : (
-                    <>
-                      <p>
-                        <strong>CPU Usage:</strong>{' '}
-                        {deviceInfo.performance.cpu_percent}%
-                      </p>
-                      <p>
-                        <strong>Memory:</strong>{' '}
-                        {deviceInfo.performance.memory_used_gb}GB /{' '}
-                        {deviceInfo.performance.memory_total_gb}GB (
-                        {deviceInfo.performance.memory_percent}%)
-                      </p>
-                      <p>
-                        <strong>Disk:</strong>{' '}
-                        {deviceInfo.performance.disk_free_gb}GB free of{' '}
-                        {deviceInfo.performance.disk_total_gb}GB (
-                        {deviceInfo.performance.disk_percent}% used)
-                      </p>
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>

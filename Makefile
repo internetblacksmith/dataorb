@@ -1,7 +1,7 @@
 # Pi Analytics Dashboard Development Makefile
 # Run 'make' without arguments for interactive menu
 
-.PHONY: help menu dev build test quality docs install clean update format lint deploy
+.PHONY: help menu dev dev-python dev-bash stop build test quality docs install clean update format lint deploy
 
 # Default target - show interactive menu
 .DEFAULT_GOAL := menu
@@ -89,6 +89,7 @@ help:
 	@echo -e ""
 	@echo -e "$(CYAN)Development:$(NC)"
 	@echo -e "  $(GREEN)make dev$(NC)          - Start development servers (Frontend + Backend)"
+	@echo -e "  $(GREEN)make stop$(NC)         - Stop all development servers"
 	@echo -e "  $(GREEN)make build$(NC)        - Build production version"
 	@echo -e "  $(GREEN)make run$(NC)          - Run production server"
 	@echo -e ""
@@ -118,7 +119,29 @@ help:
 
 dev:
 	@echo -e "$(BLUE)🚀 Starting development servers...$(NC)"
+	@echo -e "$(YELLOW)Choose method:$(NC)"
+	@echo -e "  1) Python script (recommended)"
+	@echo -e "  2) Bash script"
+	@read -p "Enter choice [1]: " choice; \
+	if [ "$$choice" = "2" ]; then \
+		echo -e "$(GREEN)Using bash script...$(NC)"; \
+		./scripts/dev-server.sh; \
+	else \
+		echo -e "$(GREEN)Using Python script...$(NC)"; \
+		python3 dev.py; \
+	fi
+
+dev-python:
+	@echo -e "$(BLUE)🚀 Starting development servers (Python)...$(NC)"
 	@python3 dev.py
+
+dev-bash:
+	@echo -e "$(BLUE)🚀 Starting development servers (Bash)...$(NC)"
+	@./scripts/dev-server.sh
+
+stop:
+	@echo -e "$(RED)🛑 Stopping all development servers...$(NC)"
+	@./scripts/stop-dev.sh
 
 build:
 	@echo -e "$(BLUE)🔨 Building production version...$(NC)"

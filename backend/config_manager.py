@@ -1,19 +1,16 @@
 import json
 import os
+import logging
 from datetime import datetime
 from typing import Dict, Any
+
+logger = logging.getLogger(__name__)
 
 
 class ConfigManager:
     def __init__(self, config_file: str = "device_config.json"):
         self.config_file = config_file
         self.default_config = {
-            "device": {
-                "name": "Pi Analytics Dashboard",
-                "location": "Office",
-                "timezone": "UTC",
-                "last_configured": None,
-            },
             "posthog": {
                 "api_key": "",
                 "project_id": "",
@@ -61,6 +58,7 @@ class ConfigManager:
                 "backup_before_update": True,
                 "max_backups": 5,
             },
+            "custom_themes": {},  # Store custom themes here
         }
         self.config = self.load_config()
 
@@ -73,7 +71,7 @@ class ConfigManager:
                     # Merge with defaults to ensure all keys exist
                     return self._merge_configs(self.default_config, loaded_config)
             except Exception as e:
-                print(f"Error loading config: {e}")
+                logger.error(f"Error loading config: {e}")
                 return self.default_config.copy()
         else:
             # Create new config file with defaults
@@ -84,7 +82,11 @@ class ConfigManager:
         """Recursively merge loaded config with defaults"""
         result = default.copy()
         for key, value in loaded.items():
-            if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            if (
+                key in result
+                and isinstance(result[key], dict)
+                and isinstance(value, dict)
+            ):
                 result[key] = self._merge_configs(result[key], value)
             else:
                 result[key] = value
@@ -98,7 +100,7 @@ class ConfigManager:
                 json.dump(config_to_save, f, indent=2)
             return True
         except Exception as e:
-            print(f"Error saving config: {e}")
+            logger.error(f"Error saving config: {e}")
             return False
 
     def get_config(self) -> Dict[str, Any]:
@@ -108,16 +110,11 @@ class ConfigManager:
     def update_config(self, updates: Dict[str, Any]) -> bool:
         """Update configuration with new values"""
         try:
-            # Update timestamp
-            if "device" not in updates:
-                updates["device"] = {}
-            updates["device"]["last_configured"] = datetime.now().isoformat()
-
             # Merge updates with current config
             self.config = self._merge_configs(self.config, updates)
             return self.save_config()
         except Exception as e:
-            print(f"Error updating config: {e}")
+            logger.error(f"Error updating config: {e}")
             return False
 
     def get_posthog_config(self) -> Dict[str, str]:
@@ -144,5 +141,31 @@ class ConfigManager:
             self.config["ota"].update(updates)
             return self.save_config()
         except Exception as e:
-            print(f"Error updating OTA config: {e}")
+            logger.error(f"Error updating OTA config: {e}")
+            return False
+    
+    def get_custom_themes(self) -> Dict[str, Any]:
+        """Get custom themes"""
+        return self.config.get("custom_themes", {})
+    
+    def add_custom_theme(self, theme_id: str, theme_data: Dict[str, Any]) -> bool:
+        """Add or update a custom theme"""
+        try:
+            if "custom_themes" not in self.config:
+                self.config["custom_themes"] = {}
+            self.config["custom_themes"][theme_id] = theme_data
+            return self.save_config()
+        except Exception as e:
+            logger.error(f"Error adding custom theme: {e}")
+            return False
+    
+    def delete_custom_theme(self, theme_id: str) -> bool:
+        """Delete a custom theme"""
+        try:
+            if "custom_themes" in self.config and theme_id in self.config["custom_themes"]:
+                del self.config["custom_themes"][theme_id]
+                return self.save_config()
+            return False
+        except Exception as e:
+            logger.error(f"Error deleting custom theme: {e}")
             return False
