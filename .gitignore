@@ -56,5 +56,10 @@ coverage.xml
 *.bak
 *.orig
 
+# Debug and test folders
+debug/
+lcd_test/
+temp_debug/
+
 # Don't ignore docs folder (Docsify)
 !docs/

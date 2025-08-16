@@ -1,21 +1,46 @@
 ---
-# Pi Analytics Dashboard - Complete Installation Playbook
-# This playbook installs and configures the complete Pi Analytics Dashboard
-# including HyperPixel display setup, application deployment, and auto-start services
+# DataOrb Pi Analytics Dashboard - Complete Installation Playbook
+# ================================================================
+# This playbook automates the complete installation and configuration of DataOrb
+# on a Raspberry Pi Zero W with HyperPixel 2.1 Round display.
+#
+# COMPATIBILITY:
+# - Raspberry Pi Zero W (ARMv6)
+# - Raspberry Pi OS Bullseye (Legacy) - RECOMMENDED
+# - HyperPixel 2.1 Round (480x480)
+#
+# FEATURES INSTALLED:
+# - DataOrb analytics dashboard (React + Flask)
+# - HyperPixel display drivers and configuration
+# - Auto-start kiosk mode with Surf browser
+# - WiFi Access Point fallback for network configuration
+# - OTA update system
+# - Clean boot experience
+#
+# USAGE:
+# ansible-playbook -i hosts playbook.yml
+#
+# VARIABLES:
+# - app_dir: Installation directory on the Pi
+# - display_type: 'hyperpixel_round' or 'none' for headless
 
-- name: Install Pi Analytics Dashboard on Raspberry Pi Zero W
+- name: Install DataOrb Analytics Dashboard on Raspberry Pi Zero W
   hosts: pi
-  become: yes
+  become: yes  # Run with sudo privileges
   vars:
-    app_dir: /home/{{ ansible_user }}/pi-analytics-dashboard
-    display_type: hyperpixel_round  # Can be 'hyperpixel_round' or 'none'
+    app_dir: /home/{{ ansible_user }}/pi-analytics-dashboard  # Where to install the app
+    display_type: hyperpixel_round  # Display configuration: 'hyperpixel_round' or 'none'
     
   tasks:
     # ============================================
     # Phase 1: System Preparation & Dependencies
     # ============================================
+    # This phase detects the OS version and installs all required system packages.
+    # Critical for ensuring compatibility with different Raspberry Pi OS versions.
     
     - name: Detect OS version
+      # Detects the Raspberry Pi OS version (bullseye, bookworm, etc.)
+      # This is critical for determining correct config file paths
       shell: |
         if [ -f /etc/os-release ]; then
           . /etc/os-release
@@ -24,8 +49,8 @@
           echo "unknown"
         fi
       register: os_detection
-      changed_when: false
-      tags: ['always']
+      changed_when: false  # This is just detection, no changes made
+      tags: ['always']  # Always run this task
     
     - name: Set OS version fact
       set_fact:
@@ -44,44 +69,52 @@
       tags: ['system', 'packages']
     
     - name: Install system dependencies
+      # Core system packages required for the application
       apt:
         name:
-          - git
-          - curl
-          - wget
-          - unzip
-          - build-essential
-          - python3-dev
-          - python3-pip
-          - python3-venv
-          - python3-setuptools
-          - python3-wheel
-          - nginx
-          - xorg
-          - xinit
-          - xserver-xorg-video-all
-          - xserver-xorg-input-all
-          - x11-xserver-utils
-          - unclutter
-          - matchbox-window-manager
-          - fbi
+          - git                      # For OTA updates via git
+          - curl                     # For downloading resources
+          - wget                     # Alternative downloader
+          - unzip                    # For extracting archives
+          - build-essential          # Compilation tools for Python packages
+          - python3-dev              # Python development headers
+          - python3-pip              # Python package installer
+          - python3-venv             # Python virtual environments
+          - python3-setuptools       # Python package setup tools
+          - python3-wheel            # Python wheel package format
+          - nginx                    # Web server (optional, not currently used)
+          - xorg                     # X Window System
+          - xinit                    # X server initializer
+          - xserver-xorg-video-all  # Video drivers for X
+          - xserver-xorg-input-all  # Input drivers for X
+          - x11-xserver-utils        # X server utilities
+          - unclutter                # Hide mouse cursor
+          - matchbox-window-manager  # Lightweight window manager
+          - fbi                      # Framebuffer image viewer
         state: present
       tags: ['system', 'dependencies']
     
     - name: Install lightweight browser for Pi Zero W
+      # Surf is a minimal webkit browser perfect for Pi Zero W's limited resources
+      # Midori is installed as a backup option
       apt:
         name:
-          - surf
-          - midori
+          - surf      # Primary browser - very lightweight, webkit-based
+          - midori    # Backup browser option
         state: present
       tags: ['system', 'browser']
     
     # ============================================
     # Phase 2: HyperPixel Display Configuration
-    # Optimized for Bullseye (Legacy OS)
     # ============================================
+    # Configures the HyperPixel 2.1 Round display (480x480).
+    # This is the most complex part as it requires specific kernel overlays
+    # and timing configurations. Works best with Bullseye (Legacy OS).
     
     - name: Check OS version for display configuration
+      # Different OS versions store boot config in different locations
+      # Bullseye and earlier: /boot/
+      # Bookworm and later: /boot/firmware/
       set_fact:
         config_path: "{{ '/boot/config.txt' if os_version in ['bullseye', 'buster'] else '/boot/firmware/config.txt' }}"
         overlay_dir: "{{ '/boot/overlays' if os_version in ['bullseye', 'buster'] else '/boot/firmware/overlays' }}"
@@ -106,19 +139,19 @@
       when: display_type == 'hyperpixel_round'
       tags: ['display', 'backup']
     
-    # Install HyperPixel dependencies
     - name: Install HyperPixel dependencies
+      # Packages required for HyperPixel display communication and control
       apt:
         name:
-          - git
-          - python3-pip
-          - python3-smbus
-          - python3-spidev
-          - python3-numpy
-          - python3-pil
-          - python3-rpi.gpio
-          - i2c-tools
-          - raspi-config
+          - git                # For cloning HyperPixel repo
+          - python3-pip        # Python package manager
+          - python3-smbus      # I2C/SMBus support
+          - python3-spidev     # SPI interface
+          - python3-numpy      # Numerical computations
+          - python3-pil        # Python Imaging Library
+          - python3-rpi.gpio   # GPIO control
+          - i2c-tools          # I2C debugging tools
+          - raspi-config       # Raspberry Pi configuration tool
         state: present
         update_cache: yes
       when: display_type == 'hyperpixel_round'
@@ -229,18 +262,19 @@
       changed_when: false
       tags: ['display']
     
-    # Add HyperPixel configuration
     - name: Add HyperPixel display configuration
+      # Critical display timing configuration for HyperPixel 2.1 Round
+      # These values are specific to the 480x480 round display
       blockinfile:
         path: "{{ config_path }}"
         marker: "# {mark} ANSIBLE MANAGED - HyperPixel 2.1 Round Display"
         block: |
-          dtoverlay=hyperpixel2r
-          enable_dpi_lcd=1
-          dpi_group=2
-          dpi_mode=87
-          dpi_output_format=0x7f216
-          dpi_timings=480 0 10 16 55 480 0 15 60 15 0 0 0 60 0 19200000 6
+          dtoverlay=hyperpixel2r          # Load HyperPixel 2 Round device tree overlay
+          enable_dpi_lcd=1                # Enable DPI LCD interface
+          dpi_group=2                     # Custom mode group
+          dpi_mode=87                     # Custom display mode
+          dpi_output_format=0x7f216       # 18-bit RGB format
+          dpi_timings=480 0 10 16 55 480 0 15 60 15 0 0 0 60 0 19200000 6  # Display timings
       when: display_type == 'hyperpixel_round'
       tags: ['display', 'hyperpixel']
     
@@ -325,18 +359,18 @@
       tags: ['display']
     
     # ============================================
-    # Phase 3: Professional Silent Boot Configuration
+    # Phase 3: Clean Boot Configuration
     # ============================================
+    # Configures a professional, clean boot experience with no text output.
+    # Sets up auto-login and hides all boot messages.
     
-    # Install required packages for boot splash
-    - name: Install boot splash dependencies
+    # Install unclutter for hiding cursor
+    - name: Install display utilities
       apt:
         name:
-          - fbi
-          - imagemagick
           - unclutter
         state: present
-      tags: ['boot', 'silent']
+      tags: ['boot', 'display']
     
     # Configure completely silent boot
     - name: Backup cmdline.txt
@@ -346,82 +380,22 @@
         remote_src: yes
       tags: ['boot', 'backup']
     
-    - name: Configure silent boot parameters
+    - name: Configure clean boot parameters
       replace:
         path: /boot/cmdline.txt
         regexp: '^(.*)$'
-        replace: '\1 quiet splash fastboot noatime logo.nologo consoleblank=0 loglevel=0 plymouth.enable=0 vt.global_cursor_default=0'
-      tags: ['boot', 'silent']
+        replace: '\1 quiet loglevel=3 logo.nologo'
+      tags: ['boot', 'clean']
     
-    - name: Remove console=tty1 for complete silence
-      replace:
-        path: /boot/cmdline.txt
-        regexp: 'console=tty1\s*'
-        replace: ''
-      tags: ['boot', 'silent']
-    
-    - name: Configure silent boot in config.txt
+    - name: Configure clean boot in config.txt
       blockinfile:
         path: /boot/config.txt
-        marker: "# {mark} ANSIBLE MANAGED - Silent Boot"
+        marker: "# {mark} ANSIBLE MANAGED - Clean Boot"
         block: |
           disable_splash=1
-          boot_delay=0
-          disable_overscan=1
-          avoid_warnings=1
-      tags: ['boot', 'silent']
+      tags: ['boot', 'clean']
     
-    # Create boot splash image
-    - name: Create boot splash directory
-      file:
-        path: /usr/share/posthog-pi
-        state: directory
-        mode: '0755'
-      tags: ['boot', 'splash']
-    
-    - name: Generate professional boot splash image
-      shell: |
-        convert -size 480x480 xc:'#0d0e1c' \
-          -fill '#1d4aff' -draw "circle 240,240 240,160" \
-          -fill '#0d0e1c' -draw "circle 240,240 235,160" \
-          -fill white -gravity center -pointsize 48 -font "DejaVu-Sans-Bold" -annotate +0+0 "PostHog" \
-          /usr/share/posthog-pi/boot-splash.png
-      args:
-        creates: /usr/share/posthog-pi/boot-splash.png
-      tags: ['boot', 'splash']
-    
-    # Create boot splash service
-    - name: Create boot splash service
-      copy:
-        content: |
-          [Unit]
-          Description=PostHog Boot Splash Screen
-          DefaultDependencies=no
-          After=local-fs.target
-          Before=getty@tty1.service
-          
-          [Service]
-          Type=oneshot
-          ExecStart=/usr/bin/fbi -T 1 -noverbose -a /usr/share/posthog-pi/boot-splash.png
-          ExecStartPost=/bin/sleep 1
-          StandardOutput=null
-          StandardError=null
-          RemainAfterExit=yes
-          
-          [Install]
-          WantedBy=sysinit.target
-        dest: /etc/systemd/system/boot-splash.service
-        mode: '0644'
-      tags: ['boot', 'splash']
-    
-    - name: Enable boot splash service
-      systemd:
-        name: boot-splash.service
-        enabled: yes
-        daemon_reload: yes
-      tags: ['boot', 'splash']
-    
-    # Configure silent auto-login
+    # Configure auto-login
     - name: Create auto-login directory
       file:
         path: /etc/systemd/system/getty@tty1.service.d
@@ -429,14 +403,13 @@
         mode: '0755'
       tags: ['boot', 'autologin']
     
-    - name: Configure silent auto-login
+    - name: Configure auto-login
       copy:
         content: |
           [Service]
           ExecStart=
-          ExecStart=-/sbin/agetty --autologin {{ ansible_user }} --noclear --skip-login --nonewline --noissue %I $TERM
-          StandardOutput=null
-          StandardError=null
+          ExecStart=-/sbin/agetty --autologin {{ ansible_user }} --noclear %I $TERM
+          Type=idle
         dest: /etc/systemd/system/getty@tty1.service.d/autologin.conf
         mode: '0644'
       tags: ['boot', 'autologin']
@@ -487,6 +460,8 @@
     # ============================================
     # Phase 4: Create swap file for Pi Zero W
     # ============================================
+    # Pi Zero W has limited RAM (512MB). A swap file helps prevent
+    # out-of-memory errors during npm builds and normal operation.
     
     - name: Check if swap file exists
       stat:
@@ -495,6 +470,7 @@
       tags: ['swap']
     
     - name: Create swap file (1GB for Pi Zero W)
+      # Creates a 1GB swap file to supplement the 512MB RAM
       command: |
         dd if=/dev/zero of=/swapfile bs=1M count=1024
       when: not swap_file_check.stat.exists
@@ -527,6 +503,8 @@
     # ============================================
     # Phase 5: Application Deployment
     # ============================================
+    # Copies the DataOrb application files to the Pi and installs
+    # all Node.js and Python dependencies.
     
     - name: Create application directory
       file:
@@ -537,21 +515,26 @@
         mode: '0755'
       tags: ['app']
     
-    # Archive and copy application files (alternative to synchronize)
     - name: Create temporary archive of application
+      # Creates a compressed archive of the application code, excluding:
+      # - Version control files (.git)
+      # - Dependencies (node_modules) - will be installed on Pi
+      # - Python cache files
+      # - Environment files with secrets
+      # - Ansible playbooks (not needed on Pi)
       archive:
         path: "../"
         dest: "/tmp/pi-analytics-app.tar.gz"
         format: gz
         exclude_path:
-          - "../.git"
-          - "../node_modules"
-          - "../__pycache__"
-          - "../*.pyc"
-          - "../.env"
-          - "../ansible"
-          - "../lcd_test"
-      delegate_to: localhost
+          - "../.git"           # Version control
+          - "../node_modules"   # Node dependencies (reinstalled)
+          - "../__pycache__"    # Python cache
+          - "../*.pyc"          # Compiled Python files
+          - "../.env"           # Secrets file
+          - "../ansible"        # Deployment files
+          - "../lcd_test"       # Test files
+      delegate_to: localhost   # Run on control machine
       become: no
       run_once: true
       tags: ['app', 'deploy']
@@ -606,31 +589,34 @@
       tags: ['app', 'frontend']
     
     - name: Install frontend dependencies with memory limit
+      # Pi Zero W has limited memory, so we restrict Node.js heap size
+      # --no-audit and --no-fund speed up installation
       shell: |
         cd {{ app_dir }}/frontend
-        export NODE_OPTIONS="--max-old-space-size=256"
-        npm install --no-audit --no-fund
+        export NODE_OPTIONS="--max-old-space-size=256"  # Limit to 256MB heap
+        npm install --no-audit --no-fund                 # Skip security audit and funding messages
       args:
-        creates: "{{ app_dir }}/frontend/node_modules"
+        creates: "{{ app_dir }}/frontend/node_modules"  # Skip if already installed
       become_user: "{{ ansible_user }}"
       register: npm_install
-      retries: 2
-      delay: 10
+      retries: 2        # Retry on failure (network issues)
+      delay: 10         # Wait 10 seconds between retries
       until: npm_install.rc == 0
       when: frontend_package.stat.exists
       tags: ['app', 'frontend']
     
     - name: Build frontend with memory limit
+      # Build the React app with optimized memory settings for Pi Zero W
       shell: |
-        export NODE_OPTIONS="--max-old-space-size=384"
+        export NODE_OPTIONS="--max-old-space-size=384"  # Slightly more memory for build process
         npm run build
       args:
         chdir: "{{ app_dir }}/frontend"
-        creates: "{{ app_dir }}/frontend/build"
+        creates: "{{ app_dir }}/frontend/build"  # Skip if build exists
       become_user: "{{ ansible_user }}"
       when: frontend_package.stat.exists
       register: npm_build
-      retries: 2
+      retries: 2        # Retry on failure
       delay: 10
       until: npm_build.rc == 0
       tags: ['app', 'frontend', 'build']
@@ -649,10 +635,13 @@
       tags: ['app', 'backend']
     
     - name: Create Python virtual environment with pip
+      # Creates isolated Python environment for backend dependencies
+      # Includes fallback to install pip if not present in venv
       shell: |
         cd {{ app_dir }}/backend
-        python3 -m venv venv
+        python3 -m venv venv                              # Create virtual environment
         if ! ./venv/bin/python -c "import pip" 2>/dev/null; then
+          # If pip is missing, install it manually
           curl -sS https://bootstrap.pypa.io/get-pip.py | ./venv/bin/python
         fi
       become_user: "{{ ansible_user }}"
@@ -670,13 +659,15 @@
       tags: ['app', 'backend']
     
     - name: Create empty .env file for first-boot configuration
+      # Creates placeholder .env file - actual API credentials
+      # will be configured via web interface on first boot
       copy:
         content: |
-          # PostHog configuration will be set up on first boot
+          # DataOrb configuration will be set up on first boot
           # Access the device's web interface to configure
-          POSTHOG_API_KEY=
-          POSTHOG_PROJECT_ID=
-          POSTHOG_HOST=https://app.posthog.com
+          POSTHOG_API_KEY=         # Will be configured via web UI
+          POSTHOG_PROJECT_ID=      # Will be configured via web UI
+          POSTHOG_HOST=https://app.posthog.com  # Default host
         dest: "{{ app_dir }}/backend/.env"
         owner: "{{ ansible_user }}"
         group: "{{ ansible_user }}"
@@ -685,6 +676,21 @@
     # ============================================
     # Phase 6: System Services Setup
     # ============================================
+    # Sets up systemd services and auto-start scripts for the dashboard.
+    # Includes X server configuration and kiosk mode setup.
+    
+    # Install X server and display tools
+    - name: Install X server and display tools
+      apt:
+        name:
+          - xserver-xorg
+          - xinit
+          - x11-xserver-utils
+          - matchbox-window-manager
+          - unclutter
+          - surf
+        state: present
+      tags: ['display', 'xorg']
     
     - name: Create backend service
       template:
@@ -693,20 +699,21 @@
       tags: ['services', 'backend']
     
     - name: Create kiosk autostart script
+      # Main auto-start script that runs on boot
       copy:
         content: |
           #!/bin/bash
-          # Auto-start script for Pi Analytics Dashboard
+          # Auto-start script for DataOrb Analytics Dashboard
           
-          # Wait for system to stabilize
+          # Wait for system to stabilize after boot
           sleep 20
           
-          # Start backend if not running
+          # Ensure backend service is running
           if ! systemctl is-active pi-analytics-backend >/dev/null 2>&1; then
               systemctl start pi-analytics-backend
           fi
           
-          # Wait for backend
+          # Wait for backend API to be ready (max 60 seconds)
           for i in {1..60}; do
               if curl -s http://localhost:5000/api/health >/dev/null 2>&1; then
                   break
@@ -714,12 +721,12 @@
               sleep 1
           done
           
-          # Kill any existing X sessions
+          # Clean up any existing X sessions
           killall xinit 2>/dev/null
           killall X 2>/dev/null
           sleep 2
           
-          # Start X and kiosk on tty1
+          # Start X server and kiosk browser on tty1 (physical display)
           su - {{ ansible_user }} -c "
           export DISPLAY=:0
           xinit {{ app_dir }}/start-kiosk.sh -- :0 -nocursor
@@ -761,6 +768,53 @@
       when: display_type == 'hyperpixel_round'
       tags: ['services', 'kiosk']
     
+    - name: Create X launcher script
+      copy:
+        content: |
+          #!/bin/bash
+          # X session launcher for DataOrb Dashboard
+          
+          # Wait for X to be ready
+          sleep 2
+          
+          # Disable screen blanking
+          xset -dpms 2>/dev/null || true
+          xset s off 2>/dev/null || true
+          xset s noblank 2>/dev/null || true
+          
+          # Hide cursor
+          unclutter -idle 0 &
+          
+          # Start window manager
+          matchbox-window-manager -use_titlebar no -use_cursor no &
+          sleep 2
+          
+          # Launch surf browser in fullscreen
+          surf -F http://localhost:5000
+        dest: "{{ app_dir }}/launch-x.sh"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: '0755'
+      tags: ['services', 'kiosk']
+    
+    - name: Configure auto-start in user's .bashrc
+      # Alternative auto-start method via .bashrc
+      # This runs when the user logs in on tty1 (the physical display)
+      blockinfile:
+        path: "/home/{{ ansible_user }}/.bashrc"
+        marker: "# {mark} ANSIBLE MANAGED - DataOrb Dashboard Auto-start"
+        block: |
+          # Auto-start DataOrb Dashboard on tty1 (physical display)
+          if [ "$(tty 2>/dev/null)" = "/dev/tty1" ]; then
+              # Only start if X server not already running
+              if ! pgrep -x "Xorg" > /dev/null; then
+                  echo "Starting DataOrb Dashboard..."
+                  cd {{ app_dir }}
+                  startx ./launch-x.sh -- :0 vt1  # Start X on virtual terminal 1
+              fi
+          fi
+      tags: ['services', 'kiosk', 'autostart']
+    
     - name: Reload systemd daemon
       systemd:
         daemon_reload: yes
@@ -774,25 +828,31 @@
       tags: ['services', 'backend']
     
     - name: Disable old systemd kiosk service if it exists
+      # Clean up old service from previous installations
+      # ignore_errors because service might not exist on fresh installs
       systemd:
         name: pi-analytics-kiosk
         enabled: no
         state: stopped
       when: display_type == 'hyperpixel_round'
-      ignore_errors: yes
+      ignore_errors: yes  # Don't fail if service doesn't exist
       tags: ['services', 'kiosk']
     
     # ============================================
     # Phase 7: WiFi Access Point Setup
     # ============================================
+    # Configures automatic WiFi Access Point mode when no network is available.
+    # This allows users to connect to the Pi and configure WiFi settings
+    # even when it's not connected to a network.
     
     - name: Install WiFi AP packages
+      # Packages needed to create a WiFi access point
       apt:
         name:
-          - hostapd
-          - dnsmasq
-          - iw
-          - wireless-tools
+          - hostapd         # Access point daemon
+          - dnsmasq         # DHCP and DNS server
+          - iw              # Wireless configuration tool
+          - wireless-tools  # Legacy wireless tools
         state: present
       tags: ['wifi', 'ap']
     
@@ -806,22 +866,23 @@
       tags: ['wifi', 'ap']
     
     - name: Create WiFi AP manager service
+      # Service that checks network connectivity and starts AP if needed
       copy:
         content: |
           [Unit]
           Description=WiFi Access Point Manager
-          After=network.target
-          Wants=network-online.target
+          After=network.target           # Run after network is up
+          Wants=network-online.target    # Want network to be online
           
           [Service]
-          Type=oneshot
+          Type=oneshot                   # Run once and exit
           ExecStart={{ app_dir }}/scripts/wifi-ap-manager.sh check
-          RemainAfterExit=yes
-          StandardOutput=journal
+          RemainAfterExit=yes            # Keep service active after exit
+          StandardOutput=journal         # Log to systemd journal
           StandardError=journal
           
           [Install]
-          WantedBy=multi-user.target
+          WantedBy=multi-user.target     # Start in normal boot
         dest: /etc/systemd/system/wifi-ap-manager.service
         mode: '0644'
       tags: ['wifi', 'ap', 'services']
@@ -877,19 +938,22 @@
       tags: ['wifi', 'ap', 'services']
     
     - name: Disable conflicting services
+      # Disable default hostapd/dnsmasq services as we manage them manually
       systemd:
         name: "{{ item }}"
         enabled: no
         state: stopped
       loop:
-        - hostapd.service
-        - dnsmasq.service
-      ignore_errors: yes
+        - hostapd.service    # We start this manually when needed
+        - dnsmasq.service    # We start this manually when needed
+      ignore_errors: yes     # Services might not exist
       tags: ['wifi', 'ap', 'services']
     
     # ============================================
     # Phase 8: Final Configuration
     # ============================================
+    # Final permission fixes, log directory creation, and
+    # installation summary display.
     
     - name: Set correct permissions on application directory
       file:
@@ -910,10 +974,11 @@
       tags: ['logs']
     
     - name: Display installation summary
+      # Show helpful information about the completed installation
       debug:
         msg:
           - "====================================="
-          - "Pi Analytics Dashboard Installation Complete!"
+          - "DataOrb Analytics Dashboard Installation Complete!"
           - "====================================="
           - ""
           - "Application installed at: {{ app_dir }}"
@@ -921,7 +986,12 @@
           - "{{ 'Auto-start: /usr/local/bin/pi-dashboard-autostart.sh' if display_type == 'hyperpixel_round' else 'No display configured' }}"
           - ""
           - "Access the dashboard at: http://{{ ansible_host }}:5000"
-          - "Configure PostHog API: http://{{ ansible_host }}:5000/config"
+          - "Configure DataOrb API: http://{{ ansible_host }}:5000/config"
+          - ""
+          - "WiFi AP Mode (when no network):"
+          - "  SSID: DataOrb-Setup"
+          - "  Password: dataorb123"
+          - "  Config URL: http://192.168.4.1:5000"
           - ""
           - "{{ 'Display: HyperPixel 2.1 Round with Surf browser (Pi Zero W compatible)' if display_type == 'hyperpixel_round' else '' }}"
           - "{{ 'Note: Reboot required for auto-start display!' if display_type == 'hyperpixel_round' else '' }}"
@@ -932,6 +1002,8 @@
           - "====================================="
       tags: ['always']
     
+  # Handlers are triggered by tasks using 'notify'
+  # They run at the end of the play
   handlers:
     - name: restart backend
       systemd:

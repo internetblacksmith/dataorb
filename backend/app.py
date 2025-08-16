@@ -18,9 +18,9 @@ CORS(app, resources={r"/api/*": {"origins": "*"}})
 config_manager = ConfigManager()
 ota_manager = OTAManager(config_manager)
 
-# Load PostHog configuration from config file or environment
+# Load DataOrb configuration from config file or environment
 def get_posthog_config():
-    """Get PostHog configuration from config file or environment variables"""
+    """Get DataOrb configuration from config file or environment variables"""
     config = config_manager.get_config()
     
     # Try to get from saved config first
@@ -33,12 +33,12 @@ def get_posthog_config():
 
 @app.route("/api/stats")
 def get_stats():
-    """Get basic PostHog statistics"""
+    """Get basic DataOrb statistics"""
     # Get current PostHog configuration
     POSTHOG_API_KEY, POSTHOG_PROJECT_ID, POSTHOG_HOST = get_posthog_config()
     
     if not POSTHOG_API_KEY or not POSTHOG_PROJECT_ID:
-        return jsonify({"error": "PostHog credentials not configured"})
+        return jsonify({"error": "DataOrb credentials not configured"})
 
     try:
         headers = {
@@ -56,11 +56,11 @@ def get_stats():
         response = requests.get(events_url, headers=headers, params=params)
 
         if response.status_code == 401:
-            return jsonify({"error": "PostHog API error: 401 - Invalid API key"}), 401
+            return jsonify({"error": "DataOrb API error: 401 - Invalid API key"}), 401
         elif response.status_code == 403:
-            return jsonify({"error": "PostHog API error: 403 - Missing permissions or wrong project"}), 403
+            return jsonify({"error": "DataOrb API error: 403 - Missing permissions or wrong project"}), 403
         elif response.status_code != 200:
-            return jsonify({"error": f"PostHog API error: {response.status_code}"}), response.status_code
+            return jsonify({"error": f"DataOrb API error: {response.status_code}"}), response.status_code
 
         data = response.json()
         events = data.get("results", [])
@@ -110,7 +110,52 @@ def get_stats():
 @app.route("/api/health")
 def health_check():
     """Health check endpoint"""
-    return jsonify({"status": "healthy", "timestamp": datetime.now(timezone.utc).isoformat()})
+    # Check if we're in AP mode
+    ap_mode = os.path.exists("/tmp/wifi_ap_mode")
+    
+    return jsonify({
+        "status": "healthy",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "ap_mode": ap_mode
+    })
+
+@app.route("/api/network/status")
+def network_status():
+    """Check network and AP mode status"""
+    import subprocess
+    
+    # Check if AP mode marker exists
+    ap_mode = os.path.exists("/tmp/wifi_ap_mode")
+    
+    # Check network connectivity
+    has_network = False
+    try:
+        result = subprocess.run(["ping", "-c", "1", "-W", "2", "8.8.8.8"], 
+                              capture_output=True, timeout=3)
+        has_network = result.returncode == 0
+    except:
+        pass
+    
+    # Get current IP addresses
+    ips = []
+    try:
+        result = subprocess.run(["ip", "addr", "show"], 
+                              capture_output=True, text=True, timeout=2)
+        if result.returncode == 0:
+            for line in result.stdout.split('\n'):
+                if 'inet ' in line and '127.0.0.1' not in line:
+                    ip = line.strip().split()[1].split('/')[0]
+                    ips.append(ip)
+    except:
+        pass
+    
+    return jsonify({
+        "ap_mode": ap_mode,
+        "has_network": has_network,
+        "ip_addresses": ips,
+        "ap_ssid": "DataOrb-Setup" if ap_mode else None,
+        "ap_password": "dataorb123" if ap_mode else None
+    })
 
 
 # OTA Update endpoints
@@ -274,6 +319,44 @@ def update_config():
     return jsonify({"success": True})
 
 
+@app.route("/api/admin/config", methods=["DELETE"])
+def delete_config():
+    """Delete device configuration completely"""
+    try:
+        # Clear configuration from memory
+        config = config_manager.get_config()
+        if "posthog" in config:
+            config["posthog"] = {}
+            config_manager.update_config(config)
+        
+        # Clear .env file
+        env_file = os.path.join(os.path.dirname(__file__), ".env")
+        env_lines = []
+        
+        # Read existing .env file if it exists and remove PostHog lines
+        if os.path.exists(env_file):
+            with open(env_file, "r") as f:
+                for line in f:
+                    # Skip PostHog-related lines
+                    if not line.startswith(("POSTHOG_API_KEY=", "POSTHOG_PROJECT_ID=", "POSTHOG_HOST=")):
+                        env_lines.append(line.rstrip())
+        
+        # Write updated .env file (essentially empty or with other configs)
+        with open(env_file, "w") as f:
+            if env_lines:
+                f.write("\n".join(env_lines) + "\n")
+            else:
+                # Write empty placeholders
+                f.write("# DataOrb configuration removed\n")
+                f.write("POSTHOG_API_KEY=\n")
+                f.write("POSTHOG_PROJECT_ID=\n")
+                f.write("POSTHOG_HOST=\n")
+        
+        return jsonify({"success": True, "message": "Configuration deleted successfully"})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 # Serve React App
 @app.route("/")
 def serve_react_app():
@@ -290,7 +373,7 @@ def serve_config_page():
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>PostHog Configuration</title>
+        <title>DataOrb Configuration</title>
         <style>
             body {
                 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -411,11 +494,76 @@ def serve_config_page():
             .status-value.not-configured {
                 color: #ef4444;
             }
+            .configured-card {
+                background: #1e293b;
+                border: 2px solid #10b981;
+                padding: 20px;
+                border-radius: 10px;
+                margin: 20px 0;
+                position: relative;
+            }
+            .configured-card h3 {
+                color: #10b981;
+                margin-top: 0;
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }
+            .delete-config-btn {
+                position: absolute;
+                top: 15px;
+                right: 15px;
+                background: #ef4444;
+                border: none;
+                color: white;
+                width: 30px;
+                height: 30px;
+                border-radius: 50%;
+                cursor: pointer;
+                font-size: 18px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                transition: background 0.2s;
+            }
+            .delete-config-btn:hover {
+                background: #dc2626;
+                transform: scale(1.1);
+            }
+            .config-detail {
+                display: flex;
+                justify-content: space-between;
+                margin: 15px 0;
+                padding: 10px;
+                background: #0a0e27;
+                border-radius: 5px;
+                align-items: center;
+            }
+            .config-detail label {
+                color: #94a3b8;
+                margin: 0;
+                font-weight: 500;
+            }
+            .config-detail .value {
+                font-family: monospace;
+                color: #fff;
+                font-size: 14px;
+            }
+            .config-detail .truncated {
+                color: #10b981;
+            }
+            .reconfigure-btn {
+                background: #ef4444;
+                margin-top: 15px;
+            }
+            .reconfigure-btn:hover {
+                background: #dc2626;
+            }
         </style>
     </head>
     <body>
         <div class="container">
-            <h1>🦔 PostHog Configuration</h1>
+            <h1>🌐 DataOrb Configuration</h1>
             
             <div id="success" class="success">
                 Configuration saved! 
@@ -425,11 +573,11 @@ def serve_config_page():
             <div id="error" class="error">Error saving configuration</div>
             
             <div class="info">
-                <p>Configure your PostHog API credentials to start tracking analytics.</p>
+                <p>Configure your DataOrb API credentials to start tracking analytics.</p>
             </div>
             
             <div class="instructions">
-                <h3>📖 How to Get Your PostHog API Credentials (2025 Version)</h3>
+                <h3>📖 How to Get Your API Credentials (2025 Version)</h3>
                 <ol>
                     <li><strong>Sign in to PostHog:</strong> Go to <a href="https://app.posthog.com" target="_blank" style="color: #1d4aff;">app.posthog.com</a> or <a href="https://eu.posthog.com" target="_blank" style="color: #1d4aff;">eu.posthog.com</a></li>
                     <li><strong>Create Your Personal API Key:</strong>
@@ -525,38 +673,69 @@ def serve_config_page():
                 </ul>
             </div>
             
-            <div class="current-status">
-                <h3>Current Status</h3>
-                <div id="status">Loading...</div>
+            <div id="configuredSection" style="display: none;">
+                <div class="configured-card">
+                    <button class="delete-config-btn" onclick="deleteConfiguration()" title="Remove Configuration">×</button>
+                    <h3>✅ API Configured</h3>
+                    <div class="config-detail">
+                        <label>API Key:</label>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <span class="value truncated" id="configuredApiKey">phx_****...****</span>
+                            <button type="button" onclick="toggleApiKeyVisibility()" 
+                                    style="background: #334155; border: none; color: #94a3b8; 
+                                           padding: 5px 10px; border-radius: 5px; cursor: pointer; 
+                                           font-size: 12px;" 
+                                    id="toggleKeyBtn">Show</button>
+                        </div>
+                    </div>
+                    <div class="config-detail">
+                        <label>Project ID:</label>
+                        <span class="value" id="configuredProjectId">-</span>
+                    </div>
+                    <div class="config-detail">
+                        <label>API Host:</label>
+                        <span class="value" id="configuredHost">-</span>
+                    </div>
+                    <button class="button reconfigure-btn" onclick="showReconfigureForm()">
+                        Update Configuration
+                    </button>
+                </div>
             </div>
             
-            <form id="configForm">
-                <div class="form-group">
-                    <label for="apiKey">PostHog API Key *</label>
-                    <input type="text" id="apiKey" name="apiKey" required 
-                           placeholder="phx_xxxxxxxxxxxxxxxx">
+            <div id="configFormSection">
+                <div class="current-status">
+                    <h3>Current Status</h3>
+                    <div id="status">Loading...</div>
                 </div>
                 
-                <div class="form-group">
-                    <label for="projectId">Project ID *</label>
-                    <input type="text" id="projectId" name="projectId" required 
-                           placeholder="1234">
-                </div>
-                
-                <div class="form-group">
-                    <label for="host">PostHog Host</label>
-                    <select id="host" name="host">
-                        <option value="https://app.posthog.com">PostHog Cloud (US)</option>
-                        <option value="https://eu.posthog.com">PostHog Cloud (EU)</option>
-                        <option value="custom">Custom/Self-hosted</option>
-                    </select>
-                    <input type="text" id="customHost" name="customHost" 
-                           placeholder="https://your-posthog-instance.com" 
-                           style="display:none; margin-top:10px;">
-                </div>
-                
-                <button type="submit">Save Configuration</button>
-            </form>
+                <form id="configForm">
+                    <div class="form-group">
+                        <label for="apiKey">API Key *</label>
+                        <input type="password" id="apiKey" name="apiKey" required 
+                               placeholder="phx_xxxxxxxxxxxxxxxx">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="projectId">Project ID *</label>
+                        <input type="text" id="projectId" name="projectId" required 
+                               placeholder="1234">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="host">API Host</label>
+                        <select id="host" name="host">
+                            <option value="https://app.posthog.com">PostHog Cloud (US)</option>
+                            <option value="https://eu.posthog.com">PostHog Cloud (EU)</option>
+                            <option value="custom">Custom/Self-hosted</option>
+                        </select>
+                        <input type="text" id="customHost" name="customHost" 
+                               placeholder="https://your-posthog-instance.com" 
+                               style="display:none; margin-top:10px;">
+                    </div>
+                    
+                    <button type="submit">Save Configuration</button>
+                </form>
+            </div>
         </div>
         
         <script>
@@ -568,6 +747,139 @@ def serve_config_page():
                 document.getElementById('error403').style.display = 'block';
             }
             
+            // Store the full API key temporarily (only in memory)
+            let fullApiKey = null;
+            let isKeyVisible = false;
+            
+            // Function to truncate API key for display
+            function truncateApiKey(key) {
+                if (!key || key.length < 12) return '****';
+                const prefix = key.substring(0, 4);
+                const suffix = key.substring(key.length - 4);
+                return `${prefix}****...****${suffix}`;
+            }
+            
+            // Function to toggle API key visibility
+            function toggleApiKeyVisibility() {
+                const keyElement = document.getElementById('configuredApiKey');
+                const toggleBtn = document.getElementById('toggleKeyBtn');
+                
+                if (isKeyVisible && fullApiKey) {
+                    // Hide the key
+                    keyElement.textContent = truncateApiKey(fullApiKey);
+                    toggleBtn.textContent = 'Show';
+                    isKeyVisible = false;
+                } else if (fullApiKey) {
+                    // Show the full key
+                    keyElement.textContent = fullApiKey;
+                    toggleBtn.textContent = 'Hide';
+                    isKeyVisible = true;
+                    
+                    // Auto-hide after 10 seconds for security
+                    setTimeout(() => {
+                        if (isKeyVisible) {
+                            keyElement.textContent = truncateApiKey(fullApiKey);
+                            toggleBtn.textContent = 'Show';
+                            isKeyVisible = false;
+                        }
+                    }, 10000);
+                }
+            }
+            
+            // Function to delete configuration
+            async function deleteConfiguration() {
+                if (!confirm('Are you sure you want to remove the API configuration?\n\nThis will delete all stored credentials and stop the dashboard from working.')) {
+                    return;
+                }
+                
+                try {
+                    const response = await fetch('/api/admin/config', {
+                        method: 'DELETE',
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        // Clear stored data
+                        fullApiKey = null;
+                        isKeyVisible = false;
+                        window.currentConfig = null;
+                        
+                        // Show success message
+                        document.getElementById('success').style.display = 'block';
+                        document.getElementById('success').innerHTML = `
+                            Configuration removed successfully!
+                            <br><span style="font-size: 14px;">The dashboard will stop working until reconfigured.</span>
+                        `;
+                        
+                        // Hide configured section and show form
+                        document.getElementById('configuredSection').style.display = 'none';
+                        document.getElementById('configFormSection').style.display = 'block';
+                        
+                        // Update status
+                        const statusDiv = document.getElementById('status');
+                        statusDiv.innerHTML = `
+                            <div class="status-item">
+                                <span>API Key:</span>
+                                <span class="status-value not-configured">Not configured ✗</span>
+                            </div>
+                        `;
+                        
+                        // Clear form
+                        document.getElementById('configForm').reset();
+                        
+                        // Notify all dashboard pages to reload
+                        localStorage.setItem('posthog_config_updated', Date.now().toString());
+                        if (window.BroadcastChannel) {
+                            const channel = new BroadcastChannel('posthog_config');
+                            channel.postMessage({ action: 'reload' });
+                            channel.close();
+                        }
+                    } else {
+                        alert('Failed to remove configuration: ' + (result.error || 'Unknown error'));
+                    }
+                } catch (err) {
+                    console.error('Error deleting config:', err);
+                    alert('Failed to remove configuration');
+                }
+            }
+            
+            // Function to show reconfigure form
+            function showReconfigureForm() {
+                document.getElementById('configuredSection').style.display = 'none';
+                document.getElementById('configFormSection').style.display = 'block';
+                
+                // Clear API key for security but keep other values
+                document.getElementById('apiKey').value = '';
+                
+                // Pre-fill project ID and host if we have them
+                if (window.currentConfig) {
+                    document.getElementById('projectId').value = window.currentConfig.projectId;
+                    const host = window.currentConfig.host;
+                    if (host === 'https://app.posthog.com' || host === 'https://eu.posthog.com') {
+                        document.getElementById('host').value = host;
+                        document.getElementById('customHost').style.display = 'none';
+                    } else {
+                        document.getElementById('host').value = 'custom';
+                        document.getElementById('customHost').style.display = 'block';
+                        document.getElementById('customHost').value = host;
+                    }
+                }
+                
+                // Update status to show it's an update
+                const statusDiv = document.getElementById('status');
+                statusDiv.innerHTML = `
+                    <div class="status-item">
+                        <span>Mode:</span>
+                        <span class="status-value">Updating Configuration</span>
+                    </div>
+                    <p style="color: #fbbf24; margin-top: 10px; font-size: 14px;">
+                        ⚠️ Enter a new API key to update credentials
+                    </p>
+                `;
+            }
+            
             // Load current configuration
             async function loadConfig() {
                 try {
@@ -575,36 +887,30 @@ def serve_config_page():
                     const data = await response.json();
                     
                     // Check PostHog configuration
-                    const statusDiv = document.getElementById('status');
                     if (data.posthog?.api_key) {
-                        statusDiv.innerHTML = `
-                            <div class="status-item">
-                                <span>API Key:</span>
-                                <span class="status-value">Configured ✓</span>
-                            </div>
-                            <div class="status-item">
-                                <span>Project ID:</span>
-                                <span class="status-value">${data.posthog.project_id || 'Not set'}</span>
-                            </div>
-                            <div class="status-item">
-                                <span>Host:</span>
-                                <span class="status-value">${data.posthog.host || 'https://app.posthog.com'}</span>
-                            </div>
-                        `;
+                        // Show configured card instead of form
+                        document.getElementById('configuredSection').style.display = 'block';
+                        document.getElementById('configFormSection').style.display = 'none';
                         
-                        // Pre-fill form
-                        document.getElementById('apiKey').value = data.posthog.api_key;
-                        document.getElementById('projectId').value = data.posthog.project_id || '';
+                        // Store the full API key in memory (for show/hide functionality)
+                        fullApiKey = data.posthog.api_key;
                         
-                        const host = data.posthog.host || 'https://app.posthog.com';
-                        if (host === 'https://app.posthog.com' || host === 'https://eu.posthog.com') {
-                            document.getElementById('host').value = host;
-                        } else {
-                            document.getElementById('host').value = 'custom';
-                            document.getElementById('customHost').style.display = 'block';
-                            document.getElementById('customHost').value = host;
-                        }
+                        // Update configured card details
+                        document.getElementById('configuredApiKey').textContent = truncateApiKey(data.posthog.api_key);
+                        document.getElementById('configuredProjectId').textContent = data.posthog.project_id || 'Not set';
+                        document.getElementById('configuredHost').textContent = data.posthog.host || 'https://app.posthog.com';
+                        
+                        // Store configuration for form (but don't include API key)
+                        window.currentConfig = {
+                            projectId: data.posthog.project_id || '',
+                            host: data.posthog.host || 'https://app.posthog.com'
+                        };
                     } else {
+                        // Show form for initial configuration
+                        document.getElementById('configuredSection').style.display = 'none';
+                        document.getElementById('configFormSection').style.display = 'block';
+                        
+                        const statusDiv = document.getElementById('status');
                         statusDiv.innerHTML = `
                             <div class="status-item">
                                 <span>API Key:</span>
@@ -614,6 +920,9 @@ def serve_config_page():
                     }
                 } catch (err) {
                     console.error('Error loading config:', err);
+                    // Show form on error
+                    document.getElementById('configuredSection').style.display = 'none';
+                    document.getElementById('configFormSection').style.display = 'block';
                 }
             }
             

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
 
-interface PostHogStats {
+interface DataOrbStats {
   events_24h: number;
   unique_users_24h: number;
   page_views_24h: number;
@@ -23,7 +23,7 @@ interface DisplayConfig {
 }
 
 const App: React.FC = () => {
-  const [stats, setStats] = useState<PostHogStats | null>(null);
+  const [stats, setStats] = useState<DataOrbStats | null>(null);
   const [displayConfig, setDisplayConfig] = useState<DisplayConfig | null>(
     null,
   );
@@ -32,6 +32,26 @@ const App: React.FC = () => {
   const [deviceIP, setDeviceIP] = useState<string>('[device-ip]');
 
   const fetchStats = async () => {
+    try {
+      // First check network status
+      const networkResponse = await fetch('/api/network/status');
+      if (networkResponse.ok) {
+        const networkData = await networkResponse.json();
+        
+        // If in AP mode and on local display, show WiFi setup
+        const isLocalDisplay = window.location.hostname === 'localhost' || 
+                             window.location.hostname === '127.0.0.1';
+        
+        if (networkData.ap_mode && isLocalDisplay) {
+          setError('wifi-setup-mode');
+          setLoading(false);
+          return;
+        }
+      }
+    } catch (err) {
+      // Network status check failed, continue with normal flow
+    }
+    
     try {
       const response = await fetch('/api/stats');
       const data = await response.json();
@@ -43,12 +63,12 @@ const App: React.FC = () => {
         setError(null);
       }
     } catch (err) {
-      // Check if we're in WiFi setup mode (network error on localhost)
+      // Check if we're on local display
       const isLocalDisplay = window.location.hostname === 'localhost' || 
                            window.location.hostname === '127.0.0.1';
       
-      if (isLocalDisplay && err instanceof TypeError && err.message.includes('fetch')) {
-        // Network error on local display likely means WiFi AP mode
+      if (isLocalDisplay) {
+        // On local display, any network error means show WiFi setup
         setError('wifi-setup-mode');
       } else {
         setError('Failed to fetch stats');
@@ -157,7 +177,7 @@ const App: React.FC = () => {
     return (
       <div className="app loading">
         <div className="loading-spinner"></div>
-        <p>Loading PostHog Stats...</p>
+        <p>Loading DataOrb Stats...</p>
       </div>
     );
   }
@@ -169,7 +189,7 @@ const App: React.FC = () => {
     
     // Auto-redirect only if accessing from remote PC
     if (!isLocalDisplay) {
-      if (error.includes('PostHog credentials not configured')) {
+      if (error.includes('DataOrb credentials not configured')) {
         window.location.href = '/config';
         return (
           <div className="app loading">
@@ -205,11 +225,6 @@ const App: React.FC = () => {
       return (
         <div className="app">
           <div className="circular-container">
-            <div className="center-logo">
-              <div className="logo-text">PostHog</div>
-              <div className="logo-subtitle">WiFi Setup</div>
-            </div>
-            
             <div className="config-message" style={{
               position: 'absolute',
               top: '50%',
@@ -217,62 +232,61 @@ const App: React.FC = () => {
               transform: 'translate(-50%, -50%)',
               textAlign: 'center',
               padding: '20px',
-              maxWidth: '85%'
+              maxWidth: '85%',
+              zIndex: 10
             }}>
-              <h2 style={{ color: '#1d4aff', marginBottom: '15px', fontSize: '24px' }}>Connect to WiFi</h2>
-              
-              <div style={{ 
-                background: '#1e293b', 
-                padding: '12px', 
-                borderRadius: '10px',
-                marginBottom: '15px',
-                border: '2px solid #1d4aff'
-              }}>
-                <p style={{ fontSize: '14px', marginBottom: '8px', color: '#94a3b8' }}>
-                  1. On your phone/laptop, connect to:
-                </p>
-                <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#fff', marginBottom: '5px' }}>
-                  📶 PostHog-Setup
-                </div>
-                <p style={{ fontSize: '12px', color: '#94a3b8' }}>
-                  Password: <span style={{ fontFamily: 'monospace', color: '#10b981' }}>posthog123</span>
-                </p>
-              </div>
+              <h2 style={{ color: '#1d4aff', marginBottom: '10px', fontSize: '20px' }}>🌐 DataOrb Setup</h2>
               
               <div style={{ 
                 background: '#1e293b', 
                 padding: '10px', 
                 borderRadius: '10px',
-                fontSize: '14px'
+                marginBottom: '10px',
+                border: '2px solid #1d4aff'
               }}>
-                <p style={{ marginBottom: '5px', color: '#94a3b8' }}>
-                  2. Visit in browser:
+                <p style={{ fontSize: '13px', marginBottom: '6px', color: '#94a3b8' }}>
+                  1. Connect to WiFi:
                 </p>
-                <div style={{ fontFamily: 'monospace', fontSize: '16px', color: '#10b981' }}>
+                <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#fff', marginBottom: '3px' }}>
+                  📶 DataOrb-Setup
+                </div>
+                <p style={{ fontSize: '11px', color: '#94a3b8' }}>
+                  Pass: <span style={{ fontFamily: 'monospace', color: '#10b981' }}>dataorb123</span>
+                </p>
+              </div>
+              
+              <div style={{ 
+                background: '#1e293b', 
+                padding: '8px', 
+                borderRadius: '10px',
+                fontSize: '13px'
+              }}>
+                <p style={{ marginBottom: '3px', color: '#94a3b8' }}>
+                  2. Open browser:
+                </p>
+                <div style={{ fontFamily: 'monospace', fontSize: '14px', color: '#10b981' }}>
                   192.168.4.1:5000
                 </div>
               </div>
               
-              <p style={{ fontSize: '11px', color: '#64748b', marginTop: '10px' }}>
-                No network detected • Access Point mode active
+              <p style={{ fontSize: '10px', color: '#64748b', marginTop: '8px' }}>
+                No network • AP mode active
               </p>
             </div>
-            
-            <div className="outer-ring"></div>
           </div>
         </div>
       );
     }
     
     // Show configuration message on LCD display
-    if (error.includes('PostHog credentials not configured') || 
+    if (error.includes('DataOrb credentials not configured') || 
         error.includes('401') || 
         error.includes('403')) {
       return (
         <div className="app">
           <div className="circular-container">
             <div className="center-logo">
-              <div className="logo-text">PostHog</div>
+              <div className="logo-text">DataOrb</div>
               <div className="logo-subtitle">Setup Required</div>
             </div>
             
@@ -302,7 +316,7 @@ const App: React.FC = () => {
               <p style={{ fontSize: '14px', color: '#94a3b8' }}>
                 {error.includes('401') && 'Invalid API key'}
                 {error.includes('403') && 'Permission error - check project access'}
-                {error.includes('not configured') && 'PostHog credentials required'}
+                {error.includes('not configured') && 'DataOrb credentials required'}
               </p>
             </div>
             
@@ -326,7 +340,7 @@ const App: React.FC = () => {
       <div className="circular-container">
         {/* Center logo/title */}
         <div className="center-logo">
-          <div className="logo-text">PostHog</div>
+          <div className="logo-text">DataOrb</div>
           <div className="logo-subtitle">Analytics</div>
         </div>
 

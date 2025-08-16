@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# PostHog Display Kiosk Mode Startup Script
+# DataOrb Display Kiosk Mode Startup Script
 # This script starts the integrated Flask app and opens Chrome in kiosk mode
 
 # Wait for network setup (managed by network service)
@@ -24,13 +24,13 @@ export DISPLAY=:0
 
 # Build React frontend first
 echo "Building React frontend..."
-cd /home/pi/posthog_pi/frontend
+cd /home/pi/pi-analytics-dashboard/frontend
 npm install
 npm run build
 
 # Start the integrated Flask app (serves both API and React)
-echo "Starting PostHog integrated server..."
-cd /home/pi/posthog_pi/backend
+echo "Starting DataOrb integrated server..."
+cd /home/pi/pi-analytics-dashboard/backend
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt

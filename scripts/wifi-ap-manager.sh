@@ -1,23 +1,32 @@
 #!/bin/bash
-# WiFi Access Point Manager for PostHog Pi
+# WiFi Access Point Manager for DataOrb Pi
 # Automatically starts AP mode when no network is available
 
-set -e
-
-AP_SSID="PostHog-Setup"
-AP_PASS="posthog123"
+AP_SSID="DataOrb-Setup"
+AP_PASS="dataorb123"
 AP_IP="192.168.4.1"
 
-# Function to check network connectivity
+# Function to check if we have network connectivity
 check_network() {
-    # Check if we have an IP address on wlan0 (not the AP address)
-    ip addr show wlan0 | grep -q "inet " && \
-    ! ip addr show wlan0 | grep -q "inet $AP_IP"
+    # Check if we can reach a public DNS server or local gateway
+    ping -c 1 -W 2 8.8.8.8 > /dev/null 2>&1 || \
+    ping -c 1 -W 2 1.1.1.1 > /dev/null 2>&1 || \
+    ping -c 1 -W 2 $(ip route | grep default | awk '{print $3}' | head -1) > /dev/null 2>&1
 }
 
-# Function to check if connected to WiFi
-check_wifi_connected() {
-    iwgetid -r > /dev/null 2>&1
+# Function to check if we have any network interface with IP
+check_any_network() {
+    # Check if eth0 has an IP (not localhost)
+    if ip addr show eth0 2>/dev/null | grep -q "inet " | grep -v "127.0.0.1"; then
+        return 0
+    fi
+    
+    # Check if wlan0 has an IP (not the AP address)
+    if ip addr show wlan0 2>/dev/null | grep "inet " | grep -v "inet $AP_IP" | grep -q "inet "; then
+        return 0
+    fi
+    
+    return 1
 }
 
 # Function to start Access Point
@@ -34,6 +43,10 @@ start_ap() {
     # Stop any existing services
     sudo systemctl stop hostapd 2>/dev/null || true
     sudo systemctl stop dnsmasq 2>/dev/null || true
+    sudo systemctl stop wpa_supplicant 2>/dev/null || true
+    
+    # Kill any wpa_supplicant processes
+    sudo killall wpa_supplicant 2>/dev/null || true
     
     # Configure network interface
     sudo ip addr flush dev wlan0
@@ -63,7 +76,7 @@ EOF
 interface=wlan0
 dhcp-range=192.168.4.2,192.168.4.100,255.255.255.0,24h
 domain=local
-address=/posthog.local/192.168.4.1
+address=/dataorb.local/192.168.4.1
 EOF
     
     # Start services
@@ -98,21 +111,32 @@ stop_ap() {
 main() {
     echo "🔍 Checking network connectivity..."
     
-    # Wait a bit for network to come up
-    sleep 10
+    # Quick check first
+    if [ "$1" = "quick" ]; then
+        sleep 2
+    else
+        # Wait for network to potentially come up
+        sleep 10
+    fi
     
-    # Check if we have network connectivity
-    if check_wifi_connected; then
-        echo "✅ WiFi connected"
+    # Check if we have ANY network connectivity (eth0 or wlan0)
+    if check_network; then
+        echo "✅ Network connectivity detected"
         # Make sure AP is stopped if running
         if [ -f /tmp/wifi_ap_mode ]; then
+            echo "Stopping AP mode (network available)"
             stop_ap
         fi
+    elif check_any_network; then
+        echo "⚠️ Have IP but no internet connectivity"
+        # Keep current state
     else
-        echo "❌ No WiFi connection detected"
+        echo "❌ No network connection detected"
         # Start AP mode if not already running
         if [ ! -f /tmp/wifi_ap_mode ]; then
             start_ap
+        else
+            echo "AP mode already running"
         fi
     fi
 }

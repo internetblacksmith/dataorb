@@ -4,12 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-PostHog Pi is an IoT dashboard project that displays PostHog analytics on a Raspberry Pi Zero W with HyperPixel Round display. The system boots into Chrome kiosk mode showing real-time analytics.
+DataOrb Pi is an IoT dashboard project that displays DataOrb analytics on a Raspberry Pi Zero W with HyperPixel Round display. The system boots into Chrome kiosk mode showing real-time analytics.
 
 ## Architecture
 
 - **Integrated Server**: Single Flask app serves both API and React frontend
-- **Backend**: Flask API (Python) that fetches PostHog data via REST API
+- **Backend**: Flask API (Python) that fetches analytics data via REST API
 - **Frontend**: React TypeScript app optimized for 480x480 round display
 - **Display**: Chrome kiosk mode with systemd service auto-start
 - **Hardware**: Raspberry Pi Zero W + HyperPixel Round display
@@ -142,33 +142,33 @@ curl http://localhost:5000/api/admin/ota/check
 
 ## Key Configuration Files
 
-- `backend/.env` - PostHog API credentials (copy from .env.example)
+- `backend/.env` - DataOrb API credentials (copy from .env.example)
 - `backend/device_config.json` - Device configuration including OTA settings
 - `config/hyperpixel-setup.sh` - Display hardware configuration
 - `scripts/start-kiosk.sh` - Kiosk mode startup script
 - `scripts/install-pi.sh` - Complete Pi installation script
 - `scripts/boot-update.py` - OTA update script for boot-time updates
-- `/etc/systemd/system/posthog-display.service` - Auto-start service
-- `/etc/systemd/system/posthog-pi-ota.service` - OTA update service
+- `/etc/systemd/system/dataorb-display.service` - Auto-start service
+- `/etc/systemd/system/dataorb-pi-ota.service` - OTA update service
 
 ## Deployment Process
 
 ### Easy Installation (Recommended)
 ```bash
 # One-command installation on fresh Raspberry Pi
-curl -sSL https://raw.githubusercontent.com/jabawack81/posthog_pi/main/scripts/install-pi.sh | bash
+curl -sSL https://raw.githubusercontent.com/jabawack81/pi_analytics_dashboard/main/scripts/install-pi.sh | bash
 ```
 
 ### Manual Installation
 1. Install dependencies: `sudo ./scripts/install-deps.sh`
-2. Configure PostHog API: Edit `backend/.env`
+2. Configure DataOrb API: Edit `backend/.env`
 3. Set up display: `sudo ./config/hyperpixel-setup.sh`
 4. Install OTA service: `sudo ./scripts/install-ota-service.sh`
 5. Reboot system for kiosk mode auto-start
 
-## PostHog Integration
+## DataOrb Integration
 
-The Flask API integrates with PostHog's REST API to fetch:
+The Flask API integrates with analytics REST API to fetch:
 - Events count (24h)
 - Unique users (24h)
 - Page views (24h)
@@ -178,7 +178,7 @@ API endpoints are cached for 5 minutes to reduce API calls.
 
 ## Dashboard Metrics Configuration
 
-The dashboard displays configurable PostHog metrics in three circular positions:
+The dashboard displays configurable DataOrb metrics in three circular positions:
 
 ### Available Metrics
 - **Events (24h)**: Total events in last 24 hours

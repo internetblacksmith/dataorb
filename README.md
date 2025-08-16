@@ -1,12 +1,12 @@
 # Pi Analytics Dashboard
 
-IoT analytics dashboard displaying PostHog data on a Raspberry Pi with HyperPixel Round display.
+IoT analytics dashboard displaying DataOrb analytics on a Raspberry Pi with HyperPixel Round display.
 
 📚 **[View Full Documentation](https://jabawack81.github.io/pi_analytics_dashboard/)** | 🚀 **[Quick Start Guide](https://jabawack81.github.io/pi_analytics_dashboard/#/QUICK_START)**
 
 ## Features
 
-- Real-time PostHog analytics display
+- Real-time DataOrb analytics display
 - Circular UI optimized for 480x480 round display
 - Modern dark theme with circular design elements
 - Integrated Flask server (single port)
@@ -37,7 +37,7 @@ python3 run.py
 
 ## Configuration
 
-### PostHog API Configuration
+### DataOrb API Configuration
 Copy `backend/.env.example` to `backend/.env` and configure:
 ```
 POSTHOG_API_KEY=your_api_key_here

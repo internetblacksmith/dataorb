@@ -1,5 +1,5 @@
 {
-  "name": "posthog-pi-frontend",
+  "name": "dataorb-pi-frontend",
   "version": "0.1.0",
   "private": true,
   "dependencies": {
