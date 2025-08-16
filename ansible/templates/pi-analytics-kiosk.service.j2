@@ -1,7 +1,7 @@
 [Unit]
 Description=Pi Analytics Dashboard Kiosk Mode
-After=network.target pi-analytics-backend.service
-Wants=network-online.target
+After=multi-user.target graphical.target pi-analytics-backend.service getty@tty1.service
+Wants=graphical.target network-online.target
 
 [Service]
 Type=simple
@@ -9,6 +9,8 @@ User={{ ansible_user }}
 Group={{ ansible_user }}
 Environment="DISPLAY=:0"
 Environment="XAUTHORITY=/home/{{ ansible_user }}/.Xauthority"
+Environment="HOME=/home/{{ ansible_user }}"
+# Wait for backend and display to be ready
 ExecStartPre=/bin/sleep 10
 ExecStart={{ app_dir }}/start-kiosk.sh
 Restart=always
@@ -17,4 +19,4 @@ StandardOutput=append:/var/log/pi-analytics/kiosk.log
 StandardError=append:/var/log/pi-analytics/kiosk-error.log
 
 [Install]
-WantedBy=graphical.target
+WantedBy=default.target

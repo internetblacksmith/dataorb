@@ -325,7 +325,167 @@
       tags: ['display']
     
     # ============================================
-    # Phase 3: Create swap file for Pi Zero W
+    # Phase 3: Professional Silent Boot Configuration
+    # ============================================
+    
+    # Install required packages for boot splash
+    - name: Install boot splash dependencies
+      apt:
+        name:
+          - fbi
+          - imagemagick
+          - unclutter
+        state: present
+      tags: ['boot', 'silent']
+    
+    # Configure completely silent boot
+    - name: Backup cmdline.txt
+      copy:
+        src: /boot/cmdline.txt
+        dest: "/boot/cmdline.txt.backup.{{ ansible_date_time.epoch }}"
+        remote_src: yes
+      tags: ['boot', 'backup']
+    
+    - name: Configure silent boot parameters
+      replace:
+        path: /boot/cmdline.txt
+        regexp: '^(.*)$'
+        replace: '\1 quiet splash fastboot noatime logo.nologo consoleblank=0 loglevel=0 plymouth.enable=0 vt.global_cursor_default=0'
+      tags: ['boot', 'silent']
+    
+    - name: Remove console=tty1 for complete silence
+      replace:
+        path: /boot/cmdline.txt
+        regexp: 'console=tty1\s*'
+        replace: ''
+      tags: ['boot', 'silent']
+    
+    - name: Configure silent boot in config.txt
+      blockinfile:
+        path: /boot/config.txt
+        marker: "# {mark} ANSIBLE MANAGED - Silent Boot"
+        block: |
+          disable_splash=1
+          boot_delay=0
+          disable_overscan=1
+          avoid_warnings=1
+      tags: ['boot', 'silent']
+    
+    # Create boot splash image
+    - name: Create boot splash directory
+      file:
+        path: /usr/share/posthog-pi
+        state: directory
+        mode: '0755'
+      tags: ['boot', 'splash']
+    
+    - name: Generate professional boot splash image
+      shell: |
+        convert -size 480x480 xc:'#0d0e1c' \
+          -fill '#1d4aff' -draw "circle 240,240 240,160" \
+          -fill '#0d0e1c' -draw "circle 240,240 235,160" \
+          -fill white -gravity center -pointsize 48 -font "DejaVu-Sans-Bold" -annotate +0+0 "PostHog" \
+          /usr/share/posthog-pi/boot-splash.png
+      args:
+        creates: /usr/share/posthog-pi/boot-splash.png
+      tags: ['boot', 'splash']
+    
+    # Create boot splash service
+    - name: Create boot splash service
+      copy:
+        content: |
+          [Unit]
+          Description=PostHog Boot Splash Screen
+          DefaultDependencies=no
+          After=local-fs.target
+          Before=getty@tty1.service
+          
+          [Service]
+          Type=oneshot
+          ExecStart=/usr/bin/fbi -T 1 -noverbose -a /usr/share/posthog-pi/boot-splash.png
+          ExecStartPost=/bin/sleep 1
+          StandardOutput=null
+          StandardError=null
+          RemainAfterExit=yes
+          
+          [Install]
+          WantedBy=sysinit.target
+        dest: /etc/systemd/system/boot-splash.service
+        mode: '0644'
+      tags: ['boot', 'splash']
+    
+    - name: Enable boot splash service
+      systemd:
+        name: boot-splash.service
+        enabled: yes
+        daemon_reload: yes
+      tags: ['boot', 'splash']
+    
+    # Configure silent auto-login
+    - name: Create auto-login directory
+      file:
+        path: /etc/systemd/system/getty@tty1.service.d
+        state: directory
+        mode: '0755'
+      tags: ['boot', 'autologin']
+    
+    - name: Configure silent auto-login
+      copy:
+        content: |
+          [Service]
+          ExecStart=
+          ExecStart=-/sbin/agetty --autologin {{ ansible_user }} --noclear --skip-login --nonewline --noissue %I $TERM
+          StandardOutput=null
+          StandardError=null
+        dest: /etc/systemd/system/getty@tty1.service.d/autologin.conf
+        mode: '0644'
+      tags: ['boot', 'autologin']
+    
+    # Hide all login messages
+    - name: Create empty login message files
+      file:
+        path: "{{ item }}"
+        state: touch
+        mode: '0644'
+      loop:
+        - /etc/issue
+        - /etc/issue.net
+        - /etc/motd
+      tags: ['boot', 'silent']
+    
+    - name: Clear legal notice
+      copy:
+        content: ""
+        dest: /etc/legal
+        mode: '0644'
+      tags: ['boot', 'silent']
+    
+    - name: Create .hushlogin for silent login
+      file:
+        path: "/home/{{ ansible_user }}/.hushlogin"
+        state: touch
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: '0644'
+      tags: ['boot', 'silent']
+    
+    # Optimize boot speed
+    - name: Disable unnecessary services for faster boot
+      systemd:
+        name: "{{ item }}"
+        enabled: no
+        state: stopped
+      loop:
+        - bluetooth.service
+        - hciuart.service
+        - apt-daily.service
+        - apt-daily-upgrade.service
+        - man-db.service
+      ignore_errors: yes
+      tags: ['boot', 'optimize']
+    
+    # ============================================
+    # Phase 4: Create swap file for Pi Zero W
     # ============================================
     
     - name: Check if swap file exists
@@ -365,7 +525,7 @@
       tags: ['swap']
     
     # ============================================
-    # Phase 4: Application Deployment
+    # Phase 5: Application Deployment
     # ============================================
     
     - name: Create application directory
@@ -523,7 +683,7 @@
       tags: ['app', 'config']
     
     # ============================================
-    # Phase 5: System Services Setup
+    # Phase 6: System Services Setup
     # ============================================
     
     - name: Create backend service
@@ -623,7 +783,112 @@
       tags: ['services', 'kiosk']
     
     # ============================================
-    # Phase 6: Final Configuration
+    # Phase 7: WiFi Access Point Setup
+    # ============================================
+    
+    - name: Install WiFi AP packages
+      apt:
+        name:
+          - hostapd
+          - dnsmasq
+          - iw
+          - wireless-tools
+        state: present
+      tags: ['wifi', 'ap']
+    
+    - name: Copy WiFi AP manager script
+      copy:
+        src: ../scripts/wifi-ap-manager.sh
+        dest: "{{ app_dir }}/scripts/wifi-ap-manager.sh"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: '0755'
+      tags: ['wifi', 'ap']
+    
+    - name: Create WiFi AP manager service
+      copy:
+        content: |
+          [Unit]
+          Description=WiFi Access Point Manager
+          After=network.target
+          Wants=network-online.target
+          
+          [Service]
+          Type=oneshot
+          ExecStart={{ app_dir }}/scripts/wifi-ap-manager.sh check
+          RemainAfterExit=yes
+          StandardOutput=journal
+          StandardError=journal
+          
+          [Install]
+          WantedBy=multi-user.target
+        dest: /etc/systemd/system/wifi-ap-manager.service
+        mode: '0644'
+      tags: ['wifi', 'ap', 'services']
+    
+    - name: Create WiFi check timer
+      copy:
+        content: |
+          [Unit]
+          Description=Check WiFi connectivity every minute
+          Requires=wifi-check.service
+          
+          [Timer]
+          OnBootSec=30
+          OnUnitActiveSec=60
+          
+          [Install]
+          WantedBy=timers.target
+        dest: /etc/systemd/system/wifi-check.timer
+        mode: '0644'
+      tags: ['wifi', 'ap', 'services']
+    
+    - name: Create WiFi check service
+      copy:
+        content: |
+          [Unit]
+          Description=Check WiFi and start AP if needed
+          
+          [Service]
+          Type=oneshot
+          ExecStart={{ app_dir }}/scripts/wifi-ap-manager.sh check
+          StandardOutput=journal
+          StandardError=journal
+        dest: /etc/systemd/system/wifi-check.service
+        mode: '0644'
+      tags: ['wifi', 'ap', 'services']
+    
+    - name: Configure hostapd defaults
+      copy:
+        content: |
+          DAEMON_CONF="/etc/hostapd/hostapd.conf"
+        dest: /etc/default/hostapd
+        mode: '0644'
+      tags: ['wifi', 'ap']
+    
+    - name: Enable WiFi AP services
+      systemd:
+        name: "{{ item }}"
+        enabled: yes
+        daemon_reload: yes
+      loop:
+        - wifi-ap-manager.service
+        - wifi-check.timer
+      tags: ['wifi', 'ap', 'services']
+    
+    - name: Disable conflicting services
+      systemd:
+        name: "{{ item }}"
+        enabled: no
+        state: stopped
+      loop:
+        - hostapd.service
+        - dnsmasq.service
+      ignore_errors: yes
+      tags: ['wifi', 'ap', 'services']
+    
+    # ============================================
+    # Phase 8: Final Configuration
     # ============================================
     
     - name: Set correct permissions on application directory

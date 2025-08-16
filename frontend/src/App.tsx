@@ -43,7 +43,16 @@ const App: React.FC = () => {
         setError(null);
       }
     } catch (err) {
-      setError('Failed to fetch stats');
+      // Check if we're in WiFi setup mode (network error on localhost)
+      const isLocalDisplay = window.location.hostname === 'localhost' || 
+                           window.location.hostname === '127.0.0.1';
+      
+      if (isLocalDisplay && err instanceof TypeError && err.message.includes('fetch')) {
+        // Network error on local display likely means WiFi AP mode
+        setError('wifi-setup-mode');
+      } else {
+        setError('Failed to fetch stats');
+      }
       console.error('Error fetching stats:', err);
     } finally {
       setLoading(false);
@@ -189,6 +198,70 @@ const App: React.FC = () => {
           </div>
         );
       }
+    }
+    
+    // Show WiFi setup instructions if in AP mode
+    if (error === 'wifi-setup-mode') {
+      return (
+        <div className="app">
+          <div className="circular-container">
+            <div className="center-logo">
+              <div className="logo-text">PostHog</div>
+              <div className="logo-subtitle">WiFi Setup</div>
+            </div>
+            
+            <div className="config-message" style={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              textAlign: 'center',
+              padding: '20px',
+              maxWidth: '85%'
+            }}>
+              <h2 style={{ color: '#1d4aff', marginBottom: '15px', fontSize: '24px' }}>Connect to WiFi</h2>
+              
+              <div style={{ 
+                background: '#1e293b', 
+                padding: '12px', 
+                borderRadius: '10px',
+                marginBottom: '15px',
+                border: '2px solid #1d4aff'
+              }}>
+                <p style={{ fontSize: '14px', marginBottom: '8px', color: '#94a3b8' }}>
+                  1. On your phone/laptop, connect to:
+                </p>
+                <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#fff', marginBottom: '5px' }}>
+                  📶 PostHog-Setup
+                </div>
+                <p style={{ fontSize: '12px', color: '#94a3b8' }}>
+                  Password: <span style={{ fontFamily: 'monospace', color: '#10b981' }}>posthog123</span>
+                </p>
+              </div>
+              
+              <div style={{ 
+                background: '#1e293b', 
+                padding: '10px', 
+                borderRadius: '10px',
+                fontSize: '14px'
+              }}>
+                <p style={{ marginBottom: '5px', color: '#94a3b8' }}>
+                  2. Visit in browser:
+                </p>
+                <div style={{ fontFamily: 'monospace', fontSize: '16px', color: '#10b981' }}>
+                  192.168.4.1:5000
+                </div>
+              </div>
+              
+              <p style={{ fontSize: '11px', color: '#64748b', marginTop: '10px' }}>
+                No network detected • Access Point mode active
+              </p>
+            </div>
+            
+            <div className="outer-ring"></div>
+          </div>
+        </div>
+      );
     }
     
     // Show configuration message on LCD display
