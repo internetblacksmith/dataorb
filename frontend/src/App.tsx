@@ -189,7 +189,7 @@ const App: React.FC = () => {
     
     // Auto-redirect only if accessing from remote PC
     if (!isLocalDisplay) {
-      if (error.includes('DataOrb credentials not configured')) {
+      if (error.includes('PostHog credentials not configured')) {
         window.location.href = '/config';
         return (
           <div className="app loading">
@@ -279,17 +279,12 @@ const App: React.FC = () => {
     }
     
     // Show configuration message on LCD display
-    if (error.includes('DataOrb credentials not configured') || 
+    if (error.includes('PostHog credentials not configured') || 
         error.includes('401') || 
         error.includes('403')) {
       return (
         <div className="app">
           <div className="circular-container">
-            <div className="center-logo">
-              <div className="logo-text">DataOrb</div>
-              <div className="logo-subtitle">Setup Required</div>
-            </div>
-            
             <div className="config-message" style={{
               position: 'absolute',
               top: '50%',
@@ -297,30 +292,32 @@ const App: React.FC = () => {
               transform: 'translate(-50%, -50%)',
               textAlign: 'center',
               padding: '20px',
-              maxWidth: '80%'
+              maxWidth: '80%',
+              zIndex: 10
             }}>
-              <h2 style={{ color: '#1d4aff', marginBottom: '20px' }}>Configuration Needed</h2>
-              <p style={{ fontSize: '18px', marginBottom: '15px' }}>
-                Visit this device's IP address from your computer:
+              <h2 style={{ color: '#1d4aff', marginBottom: '10px', fontSize: '20px' }}>
+                🌐 DataOrb Setup
+              </h2>
+              <p style={{ fontSize: '14px', marginBottom: '10px' }}>
+                Visit this device's IP from your computer:
               </p>
               <div style={{ 
                 background: '#1e293b', 
-                padding: '15px', 
-                borderRadius: '10px',
-                fontSize: '20px',
+                padding: '10px', 
+                borderRadius: '8px',
+                fontSize: '16px',
                 fontFamily: 'monospace',
-                marginBottom: '15px'
+                marginBottom: '10px',
+                color: '#10b981'
               }}>
-                http://{deviceIP}:5000/config
+                {`http://${deviceIP}:5000/config`}
               </div>
-              <p style={{ fontSize: '14px', color: '#94a3b8' }}>
-                {error.includes('401') && 'Invalid API key'}
-                {error.includes('403') && 'Permission error - check project access'}
-                {error.includes('not configured') && 'DataOrb credentials required'}
+              <p style={{ fontSize: '12px', color: '#94a3b8' }}>
+                {error.includes('401') && '⚠️ Invalid API key'}
+                {error.includes('403') && '⚠️ Permission error'}
+                {error.includes('not configured') && '❌ PostHog config needed'}
               </p>
             </div>
-            
-            <div className="outer-ring"></div>
           </div>
         </div>
       );

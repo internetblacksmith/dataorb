@@ -18,9 +18,9 @@ CORS(app, resources={r"/api/*": {"origins": "*"}})
 config_manager = ConfigManager()
 ota_manager = OTAManager(config_manager)
 
-# Load DataOrb configuration from config file or environment
+# Load PostHog configuration from config file or environment
 def get_posthog_config():
-    """Get DataOrb configuration from config file or environment variables"""
+    """Get PostHog configuration from config file or environment variables"""
     config = config_manager.get_config()
     
     # Try to get from saved config first
@@ -38,7 +38,7 @@ def get_stats():
     POSTHOG_API_KEY, POSTHOG_PROJECT_ID, POSTHOG_HOST = get_posthog_config()
     
     if not POSTHOG_API_KEY or not POSTHOG_PROJECT_ID:
-        return jsonify({"error": "DataOrb credentials not configured"})
+        return jsonify({"error": "PostHog credentials not configured"})
 
     try:
         headers = {
@@ -56,11 +56,11 @@ def get_stats():
         response = requests.get(events_url, headers=headers, params=params)
 
         if response.status_code == 401:
-            return jsonify({"error": "DataOrb API error: 401 - Invalid API key"}), 401
+            return jsonify({"error": "PostHog API error: 401 - Invalid API key"}), 401
         elif response.status_code == 403:
-            return jsonify({"error": "DataOrb API error: 403 - Missing permissions or wrong project"}), 403
+            return jsonify({"error": "PostHog API error: 403 - Missing permissions or wrong project"}), 403
         elif response.status_code != 200:
-            return jsonify({"error": f"DataOrb API error: {response.status_code}"}), response.status_code
+            return jsonify({"error": f"PostHog API error: {response.status_code}"}), response.status_code
 
         data = response.json()
         events = data.get("results", [])
@@ -279,7 +279,26 @@ def clean_cache():
 @app.route("/api/admin/config")
 def get_config():
     """Get device configuration"""
-    return jsonify(config_manager.get_config())
+    import socket
+    config = config_manager.get_config()
+    
+    # Add actual device IP address
+    try:
+        # Get IP address
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip_address = s.getsockname()[0]
+        s.close()
+        
+        # Add to network config
+        if "network" not in config:
+            config["network"] = {}
+        config["network"]["ip_address"] = ip_address
+    except:
+        # Fallback to localhost if can't determine IP
+        config["network"] = {"ip_address": "localhost"}
+    
+    return jsonify(config)
 
 
 @app.route("/api/admin/config", methods=["POST"])
@@ -573,11 +592,11 @@ def serve_config_page():
             <div id="error" class="error">Error saving configuration</div>
             
             <div class="info">
-                <p>Configure your DataOrb API credentials to start tracking analytics.</p>
+                <p>Configure your PostHog API credentials to display analytics on DataOrb.</p>
             </div>
             
             <div class="instructions">
-                <h3>📖 How to Get Your API Credentials (2025 Version)</h3>
+                <h3>📖 How to Get Your PostHog API Credentials</h3>
                 <ol>
                     <li><strong>Sign in to PostHog:</strong> Go to <a href="https://app.posthog.com" target="_blank" style="color: #1d4aff;">app.posthog.com</a> or <a href="https://eu.posthog.com" target="_blank" style="color: #1d4aff;">eu.posthog.com</a></li>
                     <li><strong>Create Your Personal API Key:</strong>
@@ -678,7 +697,7 @@ def serve_config_page():
                     <button class="delete-config-btn" onclick="deleteConfiguration()" title="Remove Configuration">×</button>
                     <h3>✅ API Configured</h3>
                     <div class="config-detail">
-                        <label>API Key:</label>
+                        <label>PostHog API Key:</label>
                         <div style="display: flex; align-items: center; gap: 10px;">
                             <span class="value truncated" id="configuredApiKey">phx_****...****</span>
                             <button type="button" onclick="toggleApiKeyVisibility()" 
@@ -689,11 +708,11 @@ def serve_config_page():
                         </div>
                     </div>
                     <div class="config-detail">
-                        <label>Project ID:</label>
+                        <label>PostHog Project ID:</label>
                         <span class="value" id="configuredProjectId">-</span>
                     </div>
                     <div class="config-detail">
-                        <label>API Host:</label>
+                        <label>PostHog Host:</label>
                         <span class="value" id="configuredHost">-</span>
                     </div>
                     <button class="button reconfigure-btn" onclick="showReconfigureForm()">
@@ -708,21 +727,21 @@ def serve_config_page():
                     <div id="status">Loading...</div>
                 </div>
                 
-                <form id="configForm">
+                <form id="configForm" method="POST" action="#" onsubmit="event.preventDefault(); return false;">
                     <div class="form-group">
-                        <label for="apiKey">API Key *</label>
+                        <label for="apiKey">PostHog API Key *</label>
                         <input type="password" id="apiKey" name="apiKey" required 
-                               placeholder="phx_xxxxxxxxxxxxxxxx">
+                               placeholder="phx_xxxxxxxxxxxxxxxx" autocomplete="off">
                     </div>
                     
                     <div class="form-group">
-                        <label for="projectId">Project ID *</label>
+                        <label for="projectId">PostHog Project ID *</label>
                         <input type="text" id="projectId" name="projectId" required 
                                placeholder="1234">
                     </div>
                     
                     <div class="form-group">
-                        <label for="host">API Host</label>
+                        <label for="host">PostHog Host</label>
                         <select id="host" name="host">
                             <option value="https://app.posthog.com">PostHog Cloud (US)</option>
                             <option value="https://eu.posthog.com">PostHog Cloud (EU)</option>
@@ -739,19 +758,25 @@ def serve_config_page():
         </div>
         
         <script>
-            // Check for errors from dashboard
-            const urlParams = new URLSearchParams(window.location.search);
-            if (urlParams.get('error') === '401') {
-                document.getElementById('error401').style.display = 'block';
-            } else if (urlParams.get('error') === '403') {
-                document.getElementById('error403').style.display = 'block';
-            }
-            
-            // Store the full API key temporarily (only in memory)
+            // Global variables and functions (need to be accessible from onclick handlers)
             let fullApiKey = null;
             let isKeyVisible = false;
             
-            // Function to truncate API key for display
+            // Wait for DOM to be fully loaded
+            document.addEventListener('DOMContentLoaded', function() {
+                // Check for errors from dashboard
+                const urlParams = new URLSearchParams(window.location.search);
+                if (urlParams.get('error') === '401') {
+                    const error401 = document.getElementById('error401');
+                    if (error401) error401.style.display = 'block';
+                } else if (urlParams.get('error') === '403') {
+                    const error403 = document.getElementById('error403');
+                    if (error403) error403.style.display = 'block';
+                }
+            
+            }); // End of DOMContentLoaded
+            
+            // Function definitions (outside DOMContentLoaded so they can be called from onclick)
             function truncateApiKey(key) {
                 if (!key || key.length < 12) return '****';
                 const prefix = key.substring(0, 4);
@@ -939,8 +964,11 @@ def serve_config_page():
             });
             
             // Handle form submission
-            document.getElementById('configForm').addEventListener('submit', async (e) => {
-                e.preventDefault();
+            const configForm = document.getElementById('configForm');
+            if (configForm) {
+                configForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
                 
                 const formData = new FormData(e.target);
                 let host = formData.get('host');
@@ -989,10 +1017,13 @@ def serve_config_page():
                     document.getElementById('success').style.display = 'none';
                     console.error('Error saving config:', err);
                 }
-            });
+                });
+            }
             
             // Load config on page load
             loadConfig();
+            
+            }); // End of DOMContentLoaded
         </script>
     </body>
     </html>
