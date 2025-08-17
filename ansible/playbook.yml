@@ -536,9 +536,12 @@
           - "../node_modules"   # Node dependencies (reinstalled)
           - "../__pycache__"    # Python cache
           - "../*.pyc"          # Compiled Python files
-          - "../.env"           # Secrets file
+          - "../.env"           # Secrets file (no longer used)
           - "../ansible"        # Deployment files
           - "../lcd_test"       # Test files
+          - "../frontend/node_modules"  # Frontend dependencies
+          - "../backend/venv"   # Python virtual environment
+          - "../backend/__pycache__"  # Backend Python cache
       delegate_to: localhost   # Run on control machine
       become: no
       run_once: true
@@ -574,34 +577,74 @@
       run_once: true
       tags: ['app', 'deploy']
     
-    - name: Install Node.js and npm from repository
-      apt:
-        name:
-          - nodejs
-          - npm
-        state: present
-        update_cache: yes
-      retries: 3
-      delay: 10
-      register: nodejs_install
-      until: nodejs_install is succeeded
+    - name: Check current Node.js version
+      command: node --version
+      register: current_node_version
+      changed_when: false
+      failed_when: false
       tags: ['app', 'nodejs']
     
-    - name: Check Node.js version
+    - name: Display current Node.js version
+      debug:
+        msg: "Current Node.js version: {{ current_node_version.stdout | default('Not installed') }}"
+      tags: ['app', 'nodejs']
+    
+    - name: Install Node.js 18.x from NodeSource repository
+      # The default Raspberry Pi OS repository has Node.js v12 which is too old
+      # for modern React builds. We need at least Node.js 14, but we install
+      # Node.js 18 LTS for better compatibility and performance.
+      block:
+        - name: Download NodeSource setup script
+          get_url:
+            url: https://deb.nodesource.com/setup_18.x
+            dest: /tmp/nodesource_setup.sh
+            mode: '0755'
+          tags: ['app', 'nodejs']
+        
+        - name: Run NodeSource setup script
+          command: /tmp/nodesource_setup.sh
+          args:
+            creates: /etc/apt/sources.list.d/nodesource.list
+          tags: ['app', 'nodejs']
+        
+        - name: Install Node.js from NodeSource
+          apt:
+            name: nodejs
+            state: present
+            update_cache: yes
+          retries: 3
+          delay: 10
+          register: nodejs_install
+          until: nodejs_install is succeeded
+          tags: ['app', 'nodejs']
+        
+        - name: Clean up setup script
+          file:
+            path: /tmp/nodesource_setup.sh
+            state: absent
+          tags: ['app', 'nodejs']
+      when: current_node_version.rc != 0 or current_node_version.stdout is version('v14.0.0', '<')
+    
+    - name: Verify Node.js installation
       command: node --version
       register: node_version
       changed_when: false
       tags: ['app', 'nodejs']
     
-    - name: Display Node.js version
+    - name: Display installed Node.js version
       debug:
-        msg: "Node.js version: {{ node_version.stdout }}"
+        msg: "Installed Node.js version: {{ node_version.stdout }}"
       tags: ['app', 'nodejs']
     
-    - name: Verify Node.js version compatibility
-      fail:
-        msg: "Node.js version {{ node_version.stdout }} is too old. Please install Node.js 14 or higher."
-      when: node_version.stdout is version('v14.0.0', '<')
+    - name: Verify npm is installed
+      command: npm --version
+      register: npm_version
+      changed_when: false
+      tags: ['app', 'nodejs']
+    
+    - name: Display npm version
+      debug:
+        msg: "npm version: {{ npm_version.stdout }}"
       tags: ['app', 'nodejs']
     
     - name: Check if frontend directory exists
@@ -614,10 +657,10 @@
       # Pi Zero W has limited memory, so we restrict Node.js heap size
       # --no-audit and --no-fund speed up installation
       shell: |
-        cd {{ app_dir }}/frontend
-        export NODE_OPTIONS="--max-old-space-size=256"  # Limit to 256MB heap
-        npm install --no-audit --no-fund                 # Skip security audit and funding messages
+        export NODE_OPTIONS="--max-old-space-size=256"
+        npm install --no-audit --no-fund
       args:
+        chdir: "{{ app_dir }}/frontend"
         creates: "{{ app_dir }}/frontend/node_modules"  # Skip if already installed
       become_user: "{{ ansible_user }}"
       register: npm_install
@@ -686,7 +729,11 @@
       tags: ['app', 'backend']
     
     - name: Install Python dependencies
-      shell: "cd {{ app_dir }}/backend && (./venv/bin/python -m pip install --no-cache-dir -r requirements.txt || ./venv/bin/pip install --no-cache-dir -r requirements.txt)"
+      shell: |
+        cd {{ app_dir }}/backend
+        ./venv/bin/python -m pip install --no-cache-dir -r requirements.txt || ./venv/bin/pip install --no-cache-dir -r requirements.txt
+      args:
+        chdir: "{{ app_dir }}/backend"
       become_user: "{{ ansible_user }}"
       when: backend_requirements.stat.exists
       register: pip_install
@@ -750,10 +797,7 @@
           sleep 2
           
           # Start X server and kiosk browser on tty1 (physical display)
-          su - {{ ansible_user }} -c "
-          export DISPLAY=:0
-          xinit {{ app_dir }}/start-kiosk.sh -- :0 -nocursor
-          " < /dev/tty1 > /dev/tty1 2>&1 &
+          su - {{ ansible_user }} -c "export DISPLAY=:0 && xinit {{ app_dir }}/start-kiosk.sh -- :0 -nocursor" < /dev/tty1 > /dev/tty1 2>&1 &
         dest: /usr/local/bin/pi-dashboard-autostart.sh
         mode: '0755'
       when: display_type == 'hyperpixel_round'
@@ -788,7 +832,24 @@
         src: templates/start-kiosk.sh.j2
         dest: "{{ app_dir }}/start-kiosk.sh"
         mode: '0755'
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
       when: display_type == 'hyperpixel_round'
+      tags: ['services', 'kiosk']
+    
+    - name: Verify kiosk script was created
+      stat:
+        path: "{{ app_dir }}/start-kiosk.sh"
+      register: kiosk_script_check
+      when: display_type == 'hyperpixel_round'
+      tags: ['services', 'kiosk']
+    
+    - name: Display kiosk script status
+      debug:
+        msg: "Kiosk script created successfully at {{ app_dir }}/start-kiosk.sh"
+      when: 
+        - display_type == 'hyperpixel_round'
+        - kiosk_script_check.stat.exists
       tags: ['services', 'kiosk']
     
     - name: Configure auto-start in user's .bashrc
@@ -1037,7 +1098,7 @@
           - "{{ 'Auto-start: /usr/local/bin/pi-dashboard-autostart.sh' if display_type == 'hyperpixel_round' else 'No display configured' }}"
           - ""
           - "Access the dashboard at: http://{{ ansible_host }}:5000"
-          - "Configure DataOrb API: http://{{ ansible_host }}:5000/config"
+          - "Configure DataOrb Settings: http://{{ ansible_host }}:5000/config"
           - ""
           - "WiFi AP Mode (when no network):"
           - "  SSID: {{ wifi_ap_ssid }}"
@@ -1049,6 +1110,7 @@
           - ""
           - "{{ 'Manual start: sudo xinit ' + app_dir + '/start-kiosk.sh -- :0 -nocursor' if display_type == 'hyperpixel_round' else '' }}"
           - ""
+          - "Configuration: All settings managed via device_config.json"
           - "{{ 'OS: ' + os_version + ' (HyperPixel works best with Bullseye)' }}"
           - "====================================="
       tags: ['always']
