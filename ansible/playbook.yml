@@ -30,6 +30,8 @@
   vars:
     app_dir: /home/{{ ansible_user }}/pi-analytics-dashboard  # Where to install the app
     display_type: hyperpixel_round  # Display configuration: 'hyperpixel_round' or 'none'
+    wifi_ap_ssid: DataOrb-Setup     # WiFi AP network name
+    wifi_ap_password: dataorb123    # WiFi AP password (min 8 characters)
     
   tasks:
     # ============================================
@@ -165,6 +167,9 @@
         force: yes
       when: display_type == 'hyperpixel_round'
       register: hyperpixel_repo
+      retries: 3
+      delay: 10
+      until: hyperpixel_repo is succeeded
       tags: ['display', 'hyperpixel']
     
     - name: Run HyperPixel installer if it exists
@@ -375,21 +380,21 @@
     # Configure completely silent boot
     - name: Backup cmdline.txt
       copy:
-        src: /boot/cmdline.txt
-        dest: "/boot/cmdline.txt.backup.{{ ansible_date_time.epoch }}"
+        src: "{{ cmdline_path }}"
+        dest: "{{ cmdline_path }}.backup.{{ ansible_date_time.epoch }}"
         remote_src: yes
       tags: ['boot', 'backup']
     
     - name: Configure clean boot parameters
       replace:
-        path: /boot/cmdline.txt
+        path: "{{ cmdline_path }}"
         regexp: '^(.*)$'
         replace: '\1 quiet loglevel=3 logo.nologo'
       tags: ['boot', 'clean']
     
     - name: Configure clean boot in config.txt
       blockinfile:
-        path: /boot/config.txt
+        path: "{{ config_path }}"
         marker: "# {mark} ANSIBLE MANAGED - Clean Boot"
         block: |
           disable_splash=1
@@ -582,6 +587,23 @@
       until: nodejs_install is succeeded
       tags: ['app', 'nodejs']
     
+    - name: Check Node.js version
+      command: node --version
+      register: node_version
+      changed_when: false
+      tags: ['app', 'nodejs']
+    
+    - name: Display Node.js version
+      debug:
+        msg: "Node.js version: {{ node_version.stdout }}"
+      tags: ['app', 'nodejs']
+    
+    - name: Verify Node.js version compatibility
+      fail:
+        msg: "Node.js version {{ node_version.stdout }} is too old. Please install Node.js 14 or higher."
+      when: node_version.stdout is version('v14.0.0', '<')
+      tags: ['app', 'nodejs']
+    
     - name: Check if frontend directory exists
       stat:
         path: "{{ app_dir }}/frontend/package.json"
@@ -619,6 +641,21 @@
       retries: 2        # Retry on failure
       delay: 10
       until: npm_build.rc == 0
+      failed_when: false  # Continue even if build fails
+      tags: ['app', 'frontend', 'build']
+    
+    - name: Check if frontend build succeeded
+      fail:
+        msg: |
+          Frontend build failed! This is usually due to memory constraints on Pi Zero W.
+          Try:
+          1. Increase swap: sudo dphys-swapfile swapoff && sudo nano /etc/dphys-swapfile (CONF_SWAPSIZE=1024)
+          2. Build on another machine and copy the build folder
+          3. Run: cd {{ app_dir }}/frontend && NODE_OPTIONS="--max-old-space-size=256" npm run build
+      when: 
+        - frontend_package.stat.exists
+        - npm_build.rc is defined
+        - npm_build.rc != 0
       tags: ['app', 'frontend', 'build']
     
     - name: Check if backend directory exists
@@ -658,20 +695,6 @@
       until: pip_install.rc == 0
       tags: ['app', 'backend']
     
-    - name: Create empty .env file for first-boot configuration
-      # Creates placeholder .env file - actual API credentials
-      # will be configured via web interface on first boot
-      copy:
-        content: |
-          # DataOrb configuration will be set up on first boot
-          # Access the device's web interface to configure
-          POSTHOG_API_KEY=         # Will be configured via web UI
-          POSTHOG_PROJECT_ID=      # Will be configured via web UI
-          POSTHOG_HOST=https://app.posthog.com  # Default host
-        dest: "{{ app_dir }}/backend/.env"
-        owner: "{{ ansible_user }}"
-        group: "{{ ansible_user }}"
-      tags: ['app', 'config']
     
     # ============================================
     # Phase 6: System Services Setup
@@ -768,35 +791,6 @@
       when: display_type == 'hyperpixel_round'
       tags: ['services', 'kiosk']
     
-    - name: Create X launcher script
-      copy:
-        content: |
-          #!/bin/bash
-          # X session launcher for DataOrb Dashboard
-          
-          # Wait for X to be ready
-          sleep 2
-          
-          # Disable screen blanking
-          xset -dpms 2>/dev/null || true
-          xset s off 2>/dev/null || true
-          xset s noblank 2>/dev/null || true
-          
-          # Hide cursor
-          unclutter -idle 0 &
-          
-          # Start window manager
-          matchbox-window-manager -use_titlebar no -use_cursor no &
-          sleep 2
-          
-          # Launch surf browser in fullscreen
-          surf -F http://localhost:5000
-        dest: "{{ app_dir }}/launch-x.sh"
-        owner: "{{ ansible_user }}"
-        group: "{{ ansible_user }}"
-        mode: '0755'
-      tags: ['services', 'kiosk']
-    
     - name: Configure auto-start in user's .bashrc
       # Alternative auto-start method via .bashrc
       # This runs when the user logs in on tty1 (the physical display)
@@ -827,17 +821,6 @@
         state: started
       tags: ['services', 'backend']
     
-    - name: Disable old systemd kiosk service if it exists
-      # Clean up old service from previous installations
-      # ignore_errors because service might not exist on fresh installs
-      systemd:
-        name: pi-analytics-kiosk
-        enabled: no
-        state: stopped
-      when: display_type == 'hyperpixel_round'
-      ignore_errors: yes  # Don't fail if service doesn't exist
-      tags: ['services', 'kiosk']
-    
     # ============================================
     # Phase 7: WiFi Access Point Setup
     # ============================================
@@ -856,6 +839,14 @@
         state: present
       tags: ['wifi', 'ap']
     
+    - name: Check if WiFi AP manager script exists
+      stat:
+        path: ../scripts/wifi-ap-manager.sh
+      delegate_to: localhost
+      register: wifi_script_check
+      become: no
+      tags: ['wifi', 'ap']
+    
     - name: Copy WiFi AP manager script
       copy:
         src: ../scripts/wifi-ap-manager.sh
@@ -863,6 +854,13 @@
         owner: "{{ ansible_user }}"
         group: "{{ ansible_user }}"
         mode: '0755'
+      when: wifi_script_check.stat.exists
+      tags: ['wifi', 'ap']
+    
+    - name: Warn if WiFi AP script is missing
+      debug:
+        msg: "WARNING: WiFi AP manager script not found. WiFi fallback AP mode will not be available."
+      when: not wifi_script_check.stat.exists
       tags: ['wifi', 'ap']
     
     - name: Create WiFi AP manager service
@@ -870,20 +868,20 @@
       copy:
         content: |
           [Unit]
-          Description=WiFi Access Point Manager
-          After=network.target           # Run after network is up
-          Wants=network-online.target    # Want network to be online
+          Description=DataOrb WiFi Access Point Manager
+          After=network.target
+          Wants=network-online.target
           
           [Service]
-          Type=oneshot                   # Run once and exit
+          Type=oneshot
           ExecStart={{ app_dir }}/scripts/wifi-ap-manager.sh check
-          RemainAfterExit=yes            # Keep service active after exit
-          StandardOutput=journal         # Log to systemd journal
+          RemainAfterExit=yes
+          StandardOutput=journal
           StandardError=journal
           
           [Install]
-          WantedBy=multi-user.target     # Start in normal boot
-        dest: /etc/systemd/system/wifi-ap-manager.service
+          WantedBy=multi-user.target
+        dest: /etc/systemd/system/pi-analytics-wifi-ap.service
         mode: '0644'
       tags: ['wifi', 'ap', 'services']
     
@@ -891,8 +889,8 @@
       copy:
         content: |
           [Unit]
-          Description=Check WiFi connectivity every minute
-          Requires=wifi-check.service
+          Description=DataOrb WiFi connectivity check timer
+          Requires=pi-analytics-wifi-check.service
           
           [Timer]
           OnBootSec=30
@@ -900,7 +898,7 @@
           
           [Install]
           WantedBy=timers.target
-        dest: /etc/systemd/system/wifi-check.timer
+        dest: /etc/systemd/system/pi-analytics-wifi-check.timer
         mode: '0644'
       tags: ['wifi', 'ap', 'services']
     
@@ -908,14 +906,14 @@
       copy:
         content: |
           [Unit]
-          Description=Check WiFi and start AP if needed
+          Description=DataOrb WiFi check and AP fallback
           
           [Service]
           Type=oneshot
           ExecStart={{ app_dir }}/scripts/wifi-ap-manager.sh check
           StandardOutput=journal
           StandardError=journal
-        dest: /etc/systemd/system/wifi-check.service
+        dest: /etc/systemd/system/pi-analytics-wifi-check.service
         mode: '0644'
       tags: ['wifi', 'ap', 'services']
     
@@ -933,8 +931,9 @@
         enabled: yes
         daemon_reload: yes
       loop:
-        - wifi-ap-manager.service
-        - wifi-check.timer
+        - pi-analytics-wifi-ap.service
+        - pi-analytics-wifi-check.timer
+      when: wifi_script_check.stat.exists
       tags: ['wifi', 'ap', 'services']
     
     - name: Disable conflicting services
@@ -973,6 +972,58 @@
         mode: '0755'
       tags: ['logs']
     
+    # ============================================
+    # Phase 9: Health Checks
+    # ============================================
+    # Verify that all services are running correctly
+    
+    - name: Wait for backend service to be ready
+      wait_for:
+        port: 5000
+        host: localhost
+        delay: 5
+        timeout: 60
+      tags: ['healthcheck']
+    
+    - name: Check backend API health
+      uri:
+        url: http://localhost:5000/api/health
+        method: GET
+        status_code: 200
+      register: api_health
+      retries: 3
+      delay: 5
+      until: api_health.status == 200
+      tags: ['healthcheck']
+    
+    - name: Check if frontend is accessible
+      uri:
+        url: http://localhost:5000/
+        method: GET
+        status_code: 200
+      register: frontend_health
+      retries: 3
+      delay: 5
+      until: frontend_health.status == 200
+      tags: ['healthcheck']
+    
+    - name: Verify systemd services are active
+      systemd:
+        name: "{{ item }}"
+        state: started
+      register: service_status
+      failed_when: false
+      loop:
+        - pi-analytics-backend
+        - pi-analytics-wifi-ap
+      tags: ['healthcheck']
+    
+    - name: Display service status
+      debug:
+        msg: "Service {{ item.item }} is {{ 'active' if item.changed == false else 'was started' }}"
+      loop: "{{ service_status.results }}"
+      tags: ['healthcheck']
+    
     - name: Display installation summary
       # Show helpful information about the completed installation
       debug:
@@ -989,8 +1040,8 @@
           - "Configure DataOrb API: http://{{ ansible_host }}:5000/config"
           - ""
           - "WiFi AP Mode (when no network):"
-          - "  SSID: DataOrb-Setup"
-          - "  Password: dataorb123"
+          - "  SSID: {{ wifi_ap_ssid }}"
+          - "  Password: {{ wifi_ap_password }}"
           - "  Config URL: http://192.168.4.1:5000"
           - ""
           - "{{ 'Display: HyperPixel 2.1 Round with Surf browser (Pi Zero W compatible)' if display_type == 'hyperpixel_round' else '' }}"
@@ -1008,9 +1059,4 @@
     - name: restart backend
       systemd:
         name: pi-analytics-backend
-        state: restarted
-      
-    - name: restart kiosk
-      systemd:
-        name: pi-analytics-kiosk
         state: restarted

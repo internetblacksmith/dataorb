@@ -11,12 +11,8 @@ This folder contains **production-ready scripts** that are essential for DataOrb
 - `network-boot.py` - Network initialization and management at boot
 
 ### Documentation Management (`/docs/` subfolder)
-- `check-docs.sh` - Checks documentation quality
-- `detect-doc-changes.sh` - Detects when docs need updating
 - `sync-docs.sh` - Syncs documentation for Docsify
-- `validate-docs.sh` - Validates docs against manifest
 - `preview-docs.sh` - Preview docs locally
-- `skip-doc-check.sh` - Skip doc checks for specific commits
 
 ## Script Locations
 

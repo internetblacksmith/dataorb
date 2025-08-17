@@ -1,0 +1,132 @@
+{
+  "posthog": {
+    "api_key": "",
+    "project_id": "",
+    "host": "https://app.posthog.com"
+  },
+  "display": {
+    "refresh_interval": 60,
+    "theme": "dark",
+    "brightness": 100,
+    "rotation": 0,
+    "screensaver_timeout": 0,
+    "metrics": {
+      "classic": {
+        "top": {
+          "type": "events_24h",
+          "label": "Events",
+          "enabled": true
+        },
+        "left": {
+          "type": "unique_users_24h",
+          "label": "Users",
+          "enabled": true
+        },
+        "right": {
+          "type": "page_views_24h",
+          "label": "Views",
+          "enabled": true
+        }
+      },
+      "modern": {
+        "top": {
+          "type": "events_24h",
+          "label": "Events",
+          "enabled": true
+        },
+        "left": {
+          "type": "unique_users_24h",
+          "label": "Users",
+          "enabled": true
+        },
+        "right": {
+          "type": "page_views_24h",
+          "label": "Views",
+          "enabled": true
+        },
+        "mini1": {
+          "type": "sessions_24h",
+          "label": "Sessions",
+          "enabled": true
+        },
+        "mini2": {
+          "type": "avg_events_per_user",
+          "label": "Avg/User",
+          "enabled": true
+        },
+        "mini3": {
+          "type": "events_1h",
+          "label": "Events/h",
+          "enabled": true
+        }
+      },
+      "analytics": {
+        "top": {
+          "type": "events_24h",
+          "label": "Events",
+          "enabled": true
+        },
+        "left": {
+          "type": "unique_users_24h",
+          "label": "Users",
+          "enabled": true
+        },
+        "right": {
+          "type": "page_views_24h",
+          "label": "Views",
+          "enabled": true
+        },
+        "bottom": {
+          "type": "sessions_24h",
+          "label": "Sessions",
+          "enabled": true
+        }
+      },
+      "executive": {
+        "north": {
+          "type": "events_24h",
+          "label": "Events",
+          "enabled": true
+        },
+        "east": {
+          "type": "page_views_24h",
+          "label": "Views",
+          "enabled": true
+        },
+        "south": {
+          "type": "unique_users_24h",
+          "label": "Users",
+          "enabled": true
+        },
+        "west": {
+          "type": "sessions_24h",
+          "label": "Sessions",
+          "enabled": true
+        }
+      }
+    }
+  },
+  "network": {
+    "wifi_ssid": "",
+    "wifi_password": "",
+    "static_ip": "",
+    "use_dhcp": true
+  },
+  "advanced": {
+    "debug_mode": false,
+    "log_level": "INFO",
+    "enable_telemetry": false
+  },
+  "ota": {
+    "enabled": true,
+    "branch": "main",
+    "check_on_boot": true,
+    "auto_pull": false,
+    "last_update": null,
+    "last_check": "2025-08-18T00:54:20.793229",
+    "update_schedule": "0 3 * * *",
+    "backup_before_update": true,
+    "max_backups": 5
+  },
+  "custom_themes": {}
+}

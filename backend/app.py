@@ -4,7 +4,6 @@ import requests
 import os
 import logging
 from datetime import datetime, timedelta, timezone
-from dotenv import load_dotenv
 from config_manager import ConfigManager
 from ota_manager import OTAManager
 from themes import ThemeManager
@@ -12,8 +11,6 @@ from themes import ThemeManager
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-load_dotenv()
 
 # Configure Flask to serve React build files
 # Don't use static_url_path="" as it interferes with routing
@@ -32,56 +29,369 @@ def get_posthog_config():
     """Get PostHog configuration from config file or environment variables"""
     config = config_manager.get_config()
 
-    # Try to get from saved config first
-    api_key = config.get("posthog", {}).get("api_key") or os.getenv("POSTHOG_API_KEY")
-    project_id = config.get("posthog", {}).get("project_id") or os.getenv(
-        "POSTHOG_PROJECT_ID"
-    )
-    host = config.get("posthog", {}).get("host") or os.getenv(
-        "POSTHOG_HOST", "https://app.posthog.com"
-    )
+    # Get from saved config
+    api_key = config.get("posthog", {}).get("api_key")
+    project_id = config.get("posthog", {}).get("project_id")
+    host = config.get("posthog", {}).get("host", "https://app.posthog.com")
 
     return api_key, project_id, host
+
+
+def get_default_metric_label(metric_type):
+    """Get default label for a metric type"""
+    labels = {
+        "events_24h": "Events (24h)",
+        "unique_users_24h": "Users (24h)",
+        "page_views_24h": "Page Views (24h)",
+        "custom_events_24h": "Custom Events (24h)",
+        "sessions_24h": "Sessions (24h)",
+        "events_1h": "Events (1h)",
+        "avg_events_per_user": "Avg/User",
+    }
+    return labels.get(metric_type, metric_type.replace("_", " ").title())
+
+
+def format_metric_object(value, label):
+    """Format a metric as an object with label and value"""
+    return {"label": label, "value": value}
+
+
+def get_device_ip():
+    """Get the device's IP address"""
+    try:
+        config = config_manager.get_config()
+        network_status = config.get("network", {})
+        return network_status.get("current_ip", "Unknown")
+    except Exception:
+        return "Unknown"
+
+
+def get_demo_mode():
+    """Check if running in demo mode"""
+    config = config_manager.get_config()
+    return config.get("demo_mode", False)
 
 
 @app.route("/api/metrics/available")
 def get_available_metrics():
     """Get list of available metrics for configuration"""
-    return jsonify({
-        "events_24h": {
-            "label": "Events (24h)",
-            "description": "Total events in the last 24 hours"
-        },
-        "unique_users_24h": {
-            "label": "Users (24h)",
-            "description": "Unique users in the last 24 hours"
-        },
-        "page_views_24h": {
-            "label": "Page Views (24h)",
-            "description": "Page view events in the last 24 hours"
-        },
-        "custom_events_24h": {
-            "label": "Custom Events (24h)",
-            "description": "Non-pageview events in the last 24 hours"
-        },
-        "sessions_24h": {
-            "label": "Sessions (24h)",
-            "description": "Unique sessions in the last 24 hours"
-        },
-        "events_1h": {
-            "label": "Events (1h)",
-            "description": "Events in the last hour"
-        },
-        "avg_events_per_user": {
-            "label": "Avg Events/User",
-            "description": "Average events per user in the last 24 hours"
+    return jsonify(
+        {
+            "events_24h": {
+                "label": "Events (24h)",
+                "description": "Total events in the last 24 hours",
+            },
+            "unique_users_24h": {
+                "label": "Users (24h)",
+                "description": "Unique users in the last 24 hours",
+            },
+            "page_views_24h": {
+                "label": "Page Views (24h)",
+                "description": "Page view events in the last 24 hours",
+            },
+            "custom_events_24h": {
+                "label": "Custom Events (24h)",
+                "description": "Non-pageview events in the last 24 hours",
+            },
+            "sessions_24h": {
+                "label": "Sessions (24h)",
+                "description": "Unique sessions in the last 24 hours",
+            },
+            "events_1h": {"label": "Events (1h)", "description": "Events in the last hour"},
+            "avg_events_per_user": {
+                "label": "Avg Events/User",
+                "description": "Average events per user in the last 24 hours",
+            },
         }
-    })
+    )
+
+
+def fetch_posthog_metrics():
+    """Fetch metrics from PostHog API"""
+    POSTHOG_API_KEY, POSTHOG_PROJECT_ID, POSTHOG_HOST = get_posthog_config()
+    if not POSTHOG_API_KEY or not POSTHOG_PROJECT_ID:
+        return None, "PostHog credentials not configured"
+
+    try:
+        headers = {
+            "Authorization": f"Bearer {POSTHOG_API_KEY}",
+            "Content-Type": "application/json",
+        }
+
+        events_url = f"{POSTHOG_HOST}/api/projects/{POSTHOG_PROJECT_ID}/events"
+        params = {
+            "after": (datetime.now(timezone.utc) - timedelta(days=1)).isoformat(),
+            "limit": "100",
+        }
+
+        response = requests.get(events_url, headers=headers, params=params)
+
+        if response.status_code == 401:
+            return None, "PostHog API error: 401 - Invalid API key"
+        elif response.status_code == 403:
+            return None, "PostHog API error: 403 - Missing permissions or wrong project"
+        elif response.status_code != 200:
+            # Return demo data if API fails
+            return {
+                "events_24h": 142,
+                "unique_users_24h": 37,
+                "page_views_24h": 89,
+                "custom_events_24h": 53,
+                "sessions_24h": 24,
+                "events_1h": 8,
+                "avg_events_per_user": 3.8,
+                "demo_mode": True,
+            }, None
+
+        data = response.json()
+        events = data.get("results", [])
+
+        # If no events in last 24 hours, try last 7 days
+        if not events:
+            params["after"] = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+            response = requests.get(events_url, headers=headers, params=params)
+            if response.status_code == 200:
+                data = response.json()
+                events = data.get("results", [])
+
+        # Calculate statistics
+        events_24h = len(events)
+        unique_users = len(set(e.get("distinct_id", "") for e in events))
+        page_views = len([e for e in events if e.get("event") == "$pageview"])
+        custom_events = len(
+            [e for e in events if e.get("event") not in ["$pageview", "$pageleave"]]
+        )
+        sessions = len(
+            set(
+                e.get("properties", {}).get("$session_id", "")
+                for e in events
+                if e.get("properties", {}).get("$session_id")
+            )
+        )
+
+        one_hour_ago = datetime.now(timezone.utc) - timedelta(hours=1)
+        events_1h = len(
+            [
+                e
+                for e in events
+                if datetime.fromisoformat(e.get("timestamp", "").replace("Z", "+00:00"))
+                > one_hour_ago
+            ]
+        )
+
+        avg_events_per_user = round(events_24h / unique_users, 1) if unique_users > 0 else 0
+
+        # Get recent events for activity feed
+        recent_events = []
+        for event in events[:10]:  # Last 10 events
+            recent_events.append(
+                {
+                    "event": event.get("event", "Unknown"),
+                    "user": event.get("distinct_id", "Anonymous")[:8],
+                    "timestamp": event.get("timestamp", ""),
+                    "properties": event.get("properties", {}),
+                }
+            )
+
+        return {
+            "events_24h": events_24h,
+            "unique_users_24h": unique_users,
+            "page_views_24h": page_views,
+            "custom_events_24h": custom_events,
+            "sessions_24h": sessions,
+            "events_1h": events_1h,
+            "avg_events_per_user": avg_events_per_user,
+            "recent_events": recent_events,
+            "demo_mode": False,
+        }, None
+
+    except Exception as e:
+        return None, str(e)
+
+
+def fetch_classic_dashboard_stats():
+    """Fetch and format stats specifically for Classic dashboard"""
+    metrics, error = fetch_posthog_metrics()
+
+    if error:
+        return None, error
+
+    config = config_manager.get_config()
+    layout_config = config.get("display", {}).get("metrics", {}).get("classic", {})
+
+    response = {"demo_mode": metrics.get("demo_mode", False), "device_ip": get_device_ip()}
+
+    # Add positioned metrics with labels
+    for position in ["top", "left", "right"]:
+        if position in layout_config:
+            metric_config = layout_config[position]
+            if metric_config.get("enabled"):
+                metric_type = metric_config.get("type")
+                label = metric_config.get("label") or get_default_metric_label(metric_type)
+                value = metrics.get(metric_type, 0)
+                response[position] = format_metric_object(value, label)
+
+    return response, None
+
+
+def fetch_modern_dashboard_stats():
+    """Fetch and format stats specifically for Modern dashboard"""
+    metrics, error = fetch_posthog_metrics()
+
+    if error:
+        return None, error
+
+    config = config_manager.get_config()
+    layout_config = config.get("display", {}).get("metrics", {}).get("modern", {})
+
+    response = {
+        "demo_mode": metrics.get("demo_mode", False),
+        "device_ip": get_device_ip(),
+        "lastUpdated": datetime.now(timezone.utc).isoformat(),
+    }
+
+    # Map positions to response keys
+    position_map = {
+        "top": "primary",
+        "left": "secondaryLeft",
+        "right": "secondaryRight",
+        "mini1": "miniStat1",
+        "mini2": "miniStat2",
+        "mini3": "miniStat3",
+    }
+
+    for config_pos, response_key in position_map.items():
+        if config_pos in layout_config:
+            metric_config = layout_config[config_pos]
+            if metric_config.get("enabled"):
+                metric_type = metric_config.get("type")
+                label = metric_config.get("label") or get_default_metric_label(metric_type)
+                value = metrics.get(metric_type, 0)
+                response[response_key] = format_metric_object(value, label)
+
+    return response, None
+
+
+def fetch_analytics_dashboard_stats():
+    """Fetch and format stats specifically for Analytics dashboard"""
+    metrics, error = fetch_posthog_metrics()
+
+    if error:
+        return None, error
+
+    config = config_manager.get_config()
+    layout_config = config.get("display", {}).get("metrics", {}).get("analytics", {})
+
+    response = {
+        "demo_mode": metrics.get("demo_mode", False),
+        "device_ip": get_device_ip(),
+        "lastUpdated": datetime.now(timezone.utc).isoformat(),
+    }
+
+    # Add all Analytics positions
+    for position in ["center", "top", "left", "right", "bottom", "stat1", "stat2", "stat3"]:
+        if position in layout_config:
+            metric_config = layout_config[position]
+            if metric_config.get("enabled"):
+                metric_type = metric_config.get("type")
+                label = metric_config.get("label") or get_default_metric_label(metric_type)
+                value = metrics.get(metric_type, 0)
+                response[position] = format_metric_object(value, label)
+
+    return response, None
+
+
+def fetch_executive_dashboard_stats():
+    """Fetch and format stats specifically for Executive dashboard"""
+    metrics, error = fetch_posthog_metrics()
+
+    if error:
+        return None, error
+
+    config = config_manager.get_config()
+    layout_config = config.get("display", {}).get("metrics", {}).get("executive", {})
+
+    response = {
+        "demo_mode": metrics.get("demo_mode", False),
+        "device_ip": get_device_ip(),
+        "lastUpdated": datetime.now(timezone.utc).isoformat(),
+        "recent_events": metrics.get("recent_events", []),
+    }
+
+    # Map positions to response keys with camelCase
+    position_map = {
+        "north": "north",
+        "east": "east",
+        "south": "south",
+        "west": "west",
+        "northeast": "northEast",
+        "southeast": "southEast",
+        "southwest": "southWest",
+        "northwest": "northWest",
+    }
+
+    for config_pos, response_key in position_map.items():
+        if config_pos in layout_config:
+            metric_config = layout_config[config_pos]
+            if metric_config.get("enabled"):
+                metric_type = metric_config.get("type")
+                label = metric_config.get("label") or get_default_metric_label(metric_type)
+                value = metrics.get(metric_type, 0)
+                response[response_key] = format_metric_object(value, label)
+
+    return response, None
+
+
+@app.route("/api/stats/classic")
+def get_classic_stats():
+    """Get stats for Classic dashboard"""
+    stats, error = fetch_classic_dashboard_stats()
+
+    if error:
+        return jsonify({"error": error}), 500
+
+    return jsonify(stats)
+
+
+@app.route("/api/stats/modern")
+def get_modern_stats():
+    """Get stats for Modern dashboard"""
+    stats, error = fetch_modern_dashboard_stats()
+
+    if error:
+        return jsonify({"error": error}), 500
+
+    return jsonify(stats)
+
+
+@app.route("/api/stats/analytics")
+def get_analytics_stats():
+    """Get stats for Analytics dashboard"""
+    stats, error = fetch_analytics_dashboard_stats()
+
+    if error:
+        return jsonify({"error": error}), 500
+
+    return jsonify(stats)
+
+
+@app.route("/api/stats/executive")
+def get_executive_stats():
+    """Get stats for Executive dashboard"""
+    stats, error = fetch_executive_dashboard_stats()
+
+    if error:
+        return jsonify({"error": error}), 500
+
+    return jsonify(stats)
 
 
 @app.route("/api/stats")
 def get_stats():
     """Get basic DataOrb statistics"""
+    # Get optional layout parameter to determine which metrics to fetch
+    layout = request.args.get("layout", None)
+
     # Get current PostHog configuration
     POSTHOG_API_KEY, POSTHOG_PROJECT_ID, POSTHOG_HOST = get_posthog_config()
 
@@ -96,7 +406,7 @@ def get_stats():
 
         # Get events for last 24 hours (or 7 days if no recent events)
         events_url = f"{POSTHOG_HOST}/api/projects/{POSTHOG_PROJECT_ID}/events"
-        
+
         # First try last 24 hours
         params = {
             "after": (datetime.now(timezone.utc) - timedelta(days=1)).isoformat(),
@@ -109,14 +419,43 @@ def get_stats():
             return jsonify({"error": "PostHog API error: 401 - Invalid API key"}), 401
         elif response.status_code == 403:
             return (
-                jsonify(
-                    {
-                        "error": "PostHog API error: 403 - Missing permissions or wrong project"
-                    }
-                ),
+                jsonify({"error": "PostHog API error: 403 - Missing permissions or wrong project"}),
                 403,
             )
         elif response.status_code != 200:
+            # If PostHog API is having issues, return demo data
+            if response.status_code == 500:
+                return jsonify(
+                    {
+                        "events_24h": 142,
+                        "unique_users_24h": 37,
+                        "page_views_24h": 89,
+                        "custom_events_24h": 53,
+                        "sessions_24h": 24,
+                        "events_1h": 8,
+                        "avg_events_per_user": 3.8,
+                        "recent_events": [
+                            {
+                                "event": "$pageview",
+                                "timestamp": datetime.now(timezone.utc).isoformat(),
+                            },
+                            {
+                                "event": "button_click",
+                                "timestamp": (
+                                    datetime.now(timezone.utc) - timedelta(minutes=5)
+                                ).isoformat(),
+                            },
+                            {
+                                "event": "$pageview",
+                                "timestamp": (
+                                    datetime.now(timezone.utc) - timedelta(minutes=12)
+                                ).isoformat(),
+                            },
+                        ],
+                        "last_updated": datetime.now(timezone.utc).isoformat(),
+                        "demo_mode": True,
+                    }
+                )
             return (
                 jsonify({"error": f"PostHog API error: {response.status_code}"}),
                 response.status_code,
@@ -124,7 +463,7 @@ def get_stats():
 
         data = response.json()
         events = data.get("results", [])
-        
+
         # If no events in last 24 hours, try last 7 days
         if not events:
             params["after"] = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
@@ -162,9 +501,7 @@ def get_stats():
         )
 
         # Calculate average events per user
-        avg_events_per_user = (
-            round(events_24h / unique_users, 1) if unique_users > 0 else 0
-        )
+        avg_events_per_user = round(events_24h / unique_users, 1) if unique_users > 0 else 0
 
         # Get recent events for activity feed
         recent_events = []
@@ -178,19 +515,40 @@ def get_stats():
                 }
             )
 
-        return jsonify(
-            {
-                "events_24h": events_24h,
-                "unique_users_24h": unique_users,
-                "page_views_24h": page_views,
-                "custom_events_24h": custom_events,
-                "sessions_24h": sessions,
-                "events_1h": events_1h,
-                "avg_events_per_user": avg_events_per_user,
+        # Create all metrics dictionary
+        all_metrics = {
+            "events_24h": events_24h,
+            "unique_users_24h": unique_users,
+            "page_views_24h": page_views,
+            "custom_events_24h": custom_events,
+            "sessions_24h": sessions,
+            "events_1h": events_1h,
+            "avg_events_per_user": avg_events_per_user,
+        }
+
+        # Determine which metrics to include based on layout
+        if layout:
+            # Get the metrics configuration for the specified layout
+            config = config_manager.get_config()
+            layout_metrics = config.get("display", {}).get("metrics", {}).get(layout, {})
+
+            # For backwards compatibility with old endpoints
+            # Simply return all metrics with recent events
+            response_data = {
+                **all_metrics,
                 "recent_events": recent_events,
                 "last_updated": datetime.now(timezone.utc).isoformat(),
             }
-        )
+
+        else:
+            # No layout specified, return all metrics (backward compatibility)
+            response_data = {
+                **all_metrics,
+                "recent_events": recent_events,
+                "last_updated": datetime.now(timezone.utc).isoformat(),
+            }
+
+        return jsonify(response_data)
 
     except Exception as e:
         return jsonify({"error": str(e)})
@@ -232,9 +590,7 @@ def network_status():
     # Get current IP addresses
     ips = []
     try:
-        result = subprocess.run(
-            ["ip", "addr", "show"], capture_output=True, text=True, timeout=2
-        )
+        result = subprocess.run(["ip", "addr", "show"], capture_output=True, text=True, timeout=2)
         if result.returncode == 0:
             for line in result.stdout.split("\n"):
                 if "inet " in line and "127.0.0.1" not in line:
@@ -400,10 +756,10 @@ def add_custom_theme():
         data = request.get_json()
         theme_id = data.get("id")
         theme_data = data.get("theme")
-        
+
         if not theme_id or not theme_data:
             return jsonify({"success": False, "error": "Missing theme ID or data"}), 400
-        
+
         if theme_manager.add_custom_theme(theme_id, theme_data):
             return jsonify({"success": True, "message": "Theme saved successfully"})
         return jsonify({"success": False, "error": "Invalid theme data"}), 400
@@ -455,33 +811,6 @@ def update_config():
     if not config_manager.update_config(data):
         return jsonify({"success": False, "error": "Failed to update config"}), 500
 
-    # Also update .env file if PostHog credentials are provided
-    if "posthog" in data:
-        env_file = os.path.join(os.path.dirname(__file__), ".env")
-        env_lines = []
-
-        # Read existing .env file if it exists
-        if os.path.exists(env_file):
-            with open(env_file, "r") as f:
-                for line in f:
-                    # Skip PostHog-related lines, we'll add them fresh
-                    if not line.startswith(
-                        ("POSTHOG_API_KEY=", "POSTHOG_PROJECT_ID=", "POSTHOG_HOST=")
-                    ):
-                        env_lines.append(line.rstrip())
-
-        # Add PostHog configuration
-        if data["posthog"].get("api_key"):
-            env_lines.append(f"POSTHOG_API_KEY={data['posthog']['api_key']}")
-        if data["posthog"].get("project_id"):
-            env_lines.append(f"POSTHOG_PROJECT_ID={data['posthog']['project_id']}")
-        if data["posthog"].get("host"):
-            env_lines.append(f"POSTHOG_HOST={data['posthog']['host']}")
-
-        # Write updated .env file
-        with open(env_file, "w") as f:
-            f.write("\n".join(env_lines) + "\n")
-
     return jsonify({"success": True})
 
 
@@ -489,70 +818,67 @@ def update_config():
 def validate_posthog_config():
     """Validate PostHog configuration"""
     data = request.get_json()
-    
+
     # Check required fields
     if not data.get("api_key"):
         return jsonify({"valid": False, "error": "API key is required"}), 400
-    
+
     if not data.get("project_id"):
         return jsonify({"valid": False, "error": "Project ID is required"}), 400
-    
+
     # Test the configuration by making a request to PostHog
     api_key = data.get("api_key")
     project_id = data.get("project_id")
     host = data.get("host", "https://app.posthog.com")
-    
+
     try:
         headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
         }
-        
+
         # Try to fetch project info to validate credentials
         test_url = f"{host}/api/projects/{project_id}/"
         response = requests.get(test_url, headers=headers, timeout=10)
-        
+
         if response.status_code == 200:
-            return jsonify({
-                "valid": True,
-                "message": "✅ PostHog connection successful!"
-            })
+            return jsonify({"valid": True, "message": "✅ PostHog connection successful!"})
         elif response.status_code == 401:
-            return jsonify({
-                "valid": False,
-                "error": "❌ Invalid API key"
-            }), 401
+            return jsonify({"valid": False, "error": "❌ Invalid API key"}), 401
         elif response.status_code == 403:
-            return jsonify({
-                "valid": False,
-                "error": "❌ API key doesn't have access to this project"
-            }), 403
+            return (
+                jsonify(
+                    {"valid": False, "error": "❌ API key doesn't have access to this project"}
+                ),
+                403,
+            )
         elif response.status_code == 404:
-            return jsonify({
-                "valid": False,
-                "error": "❌ Project not found. Check your Project ID"
-            }), 404
+            return (
+                jsonify({"valid": False, "error": "❌ Project not found. Check your Project ID"}),
+                404,
+            )
         else:
-            return jsonify({
-                "valid": False,
-                "error": f"❌ PostHog API error: {response.status_code}"
-            }), response.status_code
-            
+            return (
+                jsonify({"valid": False, "error": f"❌ PostHog API error: {response.status_code}"}),
+                response.status_code,
+            )
+
     except requests.exceptions.Timeout:
-        return jsonify({
-            "valid": False,
-            "error": "❌ Connection timeout. Check your network or host URL"
-        }), 408
+        return (
+            jsonify(
+                {"valid": False, "error": "❌ Connection timeout. Check your network or host URL"}
+            ),
+            408,
+        )
     except requests.exceptions.ConnectionError:
-        return jsonify({
-            "valid": False,
-            "error": "❌ Could not connect to PostHog. Check the host URL"
-        }), 503
+        return (
+            jsonify(
+                {"valid": False, "error": "❌ Could not connect to PostHog. Check the host URL"}
+            ),
+            503,
+        )
     except Exception as e:
-        return jsonify({
-            "valid": False,
-            "error": f"❌ Error testing connection: {str(e)}"
-        }), 500
+        return jsonify({"valid": False, "error": f"❌ Error testing connection: {str(e)}"}), 500
 
 
 @app.route("/api/admin/config", methods=["DELETE"])
@@ -590,9 +916,7 @@ def delete_config():
                 f.write("POSTHOG_PROJECT_ID=\n")
                 f.write("POSTHOG_HOST=\n")
 
-        return jsonify(
-            {"success": True, "message": "Configuration deleted successfully"}
-        )
+        return jsonify({"success": True, "message": "Configuration deleted successfully"})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -603,20 +927,24 @@ def serve_static(path):
     """Serve static files from React build"""
     return send_from_directory(os.path.join(app.static_folder, "static"), path)
 
+
 @app.route("/manifest.json")
 def serve_manifest():
     """Serve manifest.json"""
     return send_from_directory(app.static_folder, "manifest.json")
+
 
 @app.route("/favicon.ico")
 def serve_favicon():
     """Serve favicon.ico"""
     return send_from_directory(app.static_folder, "favicon.ico")
 
+
 @app.route("/robots.txt")
 def serve_robots():
     """Serve robots.txt"""
     return send_from_directory(app.static_folder, "robots.txt")
+
 
 # Serve React App for all other routes - This MUST be after all API and static routes
 @app.route("/", defaults={"path": ""})
@@ -626,7 +954,7 @@ def serve_react_app(path):
     # Don't serve API routes
     if path.startswith("api/"):
         return jsonify({"error": "Not found"}), 404
-    
+
     # For all routes (including /config, /setup), serve index.html
     # This allows React Router to handle client-side routing
     return send_from_directory(app.static_folder, "index.html")
@@ -644,3 +972,4 @@ if __name__ == "__main__":
         logger.error(f"Boot update check failed: {e}")
 
     app.run(host="0.0.0.0", port=5000, debug=False)
+

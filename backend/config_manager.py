@@ -1,7 +1,6 @@
 import json
 import os
 import logging
-from datetime import datetime
 from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
@@ -17,22 +16,40 @@ class ConfigManager:
                 "host": "https://app.posthog.com",
             },
             "display": {
-                "refresh_interval": 30,
+                "refresh_interval": 60,
                 "theme": "dark",
                 "brightness": 100,
                 "rotation": 0,
                 "screensaver_timeout": 0,
                 "metrics": {
-                    "top": {"type": "events_24h", "label": "Events", "enabled": True},
-                    "left": {
-                        "type": "unique_users_24h",
-                        "label": "Users",
-                        "enabled": True,
+                    "classic": {
+                        "top": {"type": "events_24h", "label": "Events", "enabled": True},
+                        "left": {"type": "unique_users_24h", "label": "Users", "enabled": True},
+                        "right": {"type": "page_views_24h", "label": "Views", "enabled": True},
                     },
-                    "right": {
-                        "type": "page_views_24h",
-                        "label": "Views",
-                        "enabled": True,
+                    "modern": {
+                        "top": {"type": "events_24h", "label": "Events", "enabled": True},
+                        "left": {"type": "unique_users_24h", "label": "Users", "enabled": True},
+                        "right": {"type": "page_views_24h", "label": "Views", "enabled": True},
+                        "mini1": {"type": "sessions_24h", "label": "Sessions", "enabled": True},
+                        "mini2": {
+                            "type": "avg_events_per_user",
+                            "label": "Avg/User",
+                            "enabled": True,
+                        },
+                        "mini3": {"type": "events_1h", "label": "Events/h", "enabled": True},
+                    },
+                    "analytics": {
+                        "top": {"type": "events_24h", "label": "Events", "enabled": True},
+                        "left": {"type": "unique_users_24h", "label": "Users", "enabled": True},
+                        "right": {"type": "page_views_24h", "label": "Views", "enabled": True},
+                        "bottom": {"type": "sessions_24h", "label": "Sessions", "enabled": True},
+                    },
+                    "executive": {
+                        "north": {"type": "events_24h", "label": "Events", "enabled": True},
+                        "east": {"type": "page_views_24h", "label": "Views", "enabled": True},
+                        "south": {"type": "unique_users_24h", "label": "Users", "enabled": True},
+                        "west": {"type": "sessions_24h", "label": "Sessions", "enabled": True},
                     },
                 },
             },
@@ -82,11 +99,7 @@ class ConfigManager:
         """Recursively merge loaded config with defaults"""
         result = default.copy()
         for key, value in loaded.items():
-            if (
-                key in result
-                and isinstance(result[key], dict)
-                and isinstance(value, dict)
-            ):
+            if key in result and isinstance(result[key], dict) and isinstance(value, dict):
                 result[key] = self._merge_configs(result[key], value)
             else:
                 result[key] = value
@@ -143,22 +156,29 @@ class ConfigManager:
         except Exception as e:
             logger.error(f"Error updating OTA config: {e}")
             return False
-    
+
     def get_custom_themes(self) -> Dict[str, Any]:
         """Get custom themes"""
         return self.config.get("custom_themes", {})
-    
+
     def add_custom_theme(self, theme_id: str, theme_data: Dict[str, Any]) -> bool:
         """Add or update a custom theme"""
         try:
             if "custom_themes" not in self.config:
                 self.config["custom_themes"] = {}
+
+            # Optional: Validate SVG logo if provided
+            if "logo" in theme_data and theme_data["logo"]:
+                if not isinstance(theme_data["logo"], str):
+                    logger.error("Theme logo must be a string (SVG content)")
+                    return False
+
             self.config["custom_themes"][theme_id] = theme_data
             return self.save_config()
         except Exception as e:
             logger.error(f"Error adding custom theme: {e}")
             return False
-    
+
     def delete_custom_theme(self, theme_id: str) -> bool:
         """Delete a custom theme"""
         try:

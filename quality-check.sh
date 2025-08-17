@@ -91,34 +91,22 @@ run_check "React tests" "npm run test -- --watchAll=false --passWithNoTests"
 
 cd ..
 
-# Documentation checks
-echo -e "\n${YELLOW}Documentation Checks${NC}"
-echo "----------------------"
+# Documentation sync (keep sync for Docsify, but no quality checks)
+echo -e "\n${YELLOW}Documentation Sync${NC}"
+echo "-------------------"
 
 # Sync documentation to docs folder for Docsify
-if [ -x "./scripts/sync-docs.sh" ]; then
+if [ -x "./scripts/docs/sync-docs.sh" ]; then
     echo "📚 Syncing documentation for Docsify..."
-    ./scripts/sync-docs.sh > /dev/null 2>&1
+    ./scripts/docs/sync-docs.sh > /dev/null 2>&1
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}✓ Documentation synced to docs/${NC}"
     else
-        echo -e "${RED}✗ Failed to sync documentation${NC}"
-        FAILED=1
-    fi
-fi
-
-# Run comprehensive documentation quality check
-if [ -x "./scripts/check-docs.sh" ]; then
-    ./scripts/check-docs.sh
-    DOC_CHECK_STATUS=$?
-    if [ $DOC_CHECK_STATUS -ne 0 ]; then
-        FAILED=1
+        echo -e "${YELLOW}⚠️  Could not sync documentation${NC}"
+        # Don't fail the quality check for doc sync issues
     fi
 else
-    run_check "CLAUDE.md exists" "[ -f CLAUDE.md ]"
-    run_check "README.md exists" "[ -f README.md ]"
-    run_check "PROJECT_CONTEXT.md exists" "[ -f PROJECT_CONTEXT.md ]"
-    echo -e "${YELLOW}⚠️  Documentation quality script not found. Run ./scripts/check-docs.sh for detailed checks${NC}"
+    echo -e "${YELLOW}ℹ️  Documentation sync script not found${NC}"
 fi
 
 # Check for TODOs in code

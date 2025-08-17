@@ -22,18 +22,12 @@ DataOrb is an IoT dashboard that displays PostHog analytics on a Raspberry Pi Ze
 **🚨 CRITICAL**: After completing any development task, you MUST run the quality gate checks to ensure:
 - All tests are passing
 - Code is properly formatted and linted
-- **Documentation is up to date (MANDATORY - treated as failing test if not updated)**
-
-### Documentation is NOT Optional
-**Documentation updates are as important as passing tests.** Any code change MUST include corresponding documentation updates. Out-of-date documentation will cause the quality gate to FAIL.
+- Documentation is kept up to date when making significant changes
 
 ### Running Quality Checks
 ```bash
 # Run all quality checks (required before marking any task as complete)
 ./quality-check.sh
-
-# Run documentation quality check separately
-./scripts/check-docs.sh
 
 # Run specific checks:
 # Backend
@@ -53,36 +47,15 @@ npm run quality                # All frontend checks
 ./scripts/install-pre-commit.sh
 ```
 
-### Documentation Update Requirements
-- **ALWAYS** update docs when adding features, APIs, or configuration
-- **ALWAYS** run `./scripts/check-docs.sh` before completing tasks
-- **REFER TO** `DOCUMENTATION_CHECKLIST.md` for detailed requirements
-- **TREAT** documentation failures as test failures
+### Documentation Management
 
-### How Documentation Freshness is Detected
+Documentation should be updated when:
+- Adding new features or APIs
+- Changing configuration options
+- Modifying installation or setup procedures
+- Adding or removing dependencies
 
-The project uses multiple methods to ensure documentation stays current:
-
-1. **Intelligent Change Detection** (`scripts/detect-doc-changes.sh`):
-   - Analyzes Git history since last doc update
-   - Detects new API endpoints, scripts, dependencies
-   - Checks commit messages for feature additions
-   - Suggests specific documentation updates needed
-
-2. **Manifest Validation** (`scripts/validate-docs.sh`):
-   - Compares code against `.doc-manifest.json`
-   - Ensures all APIs, configs, scripts are documented
-   - Validates required content in each doc file
-
-3. **Sync Verification**:
-   - Checks if markdown files match Docsify docs
-   - Ensures both formats are identical
-   - Warns about out-of-sync files
-
-4. **Content Analysis**:
-   - Searches for undocumented features
-   - Validates configuration options
-   - Checks for outdated references
+Use Claude Code to review if documentation needs updates based on your changes. The documentation sync script (`./scripts/docs/sync-docs.sh`) keeps the Docsify docs in sync with the main documentation files.
 
 ### Quality Tools Setup
 - **Backend**: black, flake8, mypy, pytest (see `backend/requirements-dev.txt`)

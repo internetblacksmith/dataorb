@@ -1,6 +1,8 @@
-# Pi Analytics Dashboard
+# DataOrb - Analytics Dashboard for Raspberry Pi
 
-IoT analytics dashboard displaying PostHog data on a Raspberry Pi with HyperPixel Round display.
+IoT dashboard displaying PostHog analytics on a Raspberry Pi with HyperPixel Round display.
+
+**Note:** This is an independent project, not affiliated with PostHog.
 
 📚 **[View Full Documentation](https://jabawack81.github.io/pi_analytics_dashboard/)** | 🚀 **[Quick Start Guide](https://jabawack81.github.io/pi_analytics_dashboard/#/QUICK_START)**
 
@@ -11,6 +13,14 @@ IoT analytics dashboard displaying PostHog data on a Raspberry Pi with HyperPixe
 - Modern dark theme with circular design elements
 - Integrated Flask server (single port)
 - Auto-refresh dashboard
+
+## Hardware Requirements
+
+- **Raspberry Pi Zero W** (or Pi 3/4/5 for better performance)
+- **HyperPixel 2.1 Round Touch Display** by Pimoroni
+- **MicroSD Card** (8GB minimum, 16GB+ recommended)
+- **Power Supply** (5V 2.5A for Pi Zero W, more for Pi 3/4/5)
+- **Optional: 3D Printed Case** - [Download STL files from Cults3D](https://cults3d.com/en/design-collections/printminion/various-cases-for-hyperpixel-2-1-round-touch-display-by-pimoroni)
 
 ## Quick Start
 
@@ -38,7 +48,7 @@ python3 run.py
 ## Configuration
 
 ### PostHog API Configuration
-Copy `backend/.env.example` to `backend/.env` and configure:
+Copy `backend/.env.example` to `backend/.env` and configure with your PostHog credentials:
 ```
 POSTHOG_API_KEY=your_api_key_here
 POSTHOG_PROJECT_ID=your_project_id_here
@@ -66,14 +76,10 @@ This project enforces strict quality standards:
 ```bash
 # Run all quality checks (required before committing)
 ./quality-check.sh
-
-# Run documentation check separately
-./scripts/check-docs.sh
 ```
 
 Quality checks include:
 - Python: Black formatting, Flake8 linting, MyPy types, pytest
 - Frontend: ESLint, Prettier, TypeScript, Jest tests
-- Documentation: Up-to-date and complete documentation
 
-**Documentation updates are MANDATORY** - treated as failing tests if not updated.
+The quality gate ensures all code is properly formatted, linted, and tested before commits.

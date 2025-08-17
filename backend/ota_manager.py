@@ -30,9 +30,7 @@ class OTAManager:
             ).strip()[:8]
 
             # Check if there are uncommitted changes
-            status_output = self._run_command(
-                ["git", "status", "--porcelain"], cwd=self.repo_path
-            )
+            status_output = self._run_command(["git", "status", "--porcelain"], cwd=self.repo_path)
             has_changes = bool(status_output.strip())
 
         except Exception as e:
@@ -87,9 +85,7 @@ class OTAManager:
                     commit_messages = messages.split("\n")
 
             # Update last check time
-            self.config_manager.update_ota_config(
-                {"last_check": datetime.now().isoformat()}
-            )
+            self.config_manager.update_ota_config({"last_check": datetime.now().isoformat()})
 
             return {
                 "update_available": current_commit != remote_commit,
@@ -113,13 +109,9 @@ class OTAManager:
                 return {"error": "OTA updates are disabled"}
 
             # Check for uncommitted changes
-            status_output = self._run_command(
-                ["git", "status", "--porcelain"], cwd=self.repo_path
-            )
+            status_output = self._run_command(["git", "status", "--porcelain"], cwd=self.repo_path)
             if status_output.strip() and not force:
-                return {
-                    "error": "Uncommitted changes detected. Use force=true to override"
-                }
+                return {"error": "Uncommitted changes detected. Use force=true to override"}
 
             # Create backup if configured
             if config.get("backup_before_update", True):
@@ -141,9 +133,7 @@ class OTAManager:
             )
 
             # Update last update time
-            self.config_manager.update_ota_config(
-                {"last_update": datetime.now().isoformat()}
-            )
+            self.config_manager.update_ota_config({"last_update": datetime.now().isoformat()})
 
             # Log the update
             self._log(f"OTA update completed: {pull_output}")
@@ -182,13 +172,9 @@ class OTAManager:
         """Switch to a different Git branch"""
         try:
             # Check for uncommitted changes
-            status_output = self._run_command(
-                ["git", "status", "--porcelain"], cwd=self.repo_path
-            )
+            status_output = self._run_command(["git", "status", "--porcelain"], cwd=self.repo_path)
             if status_output.strip():
-                return {
-                    "error": "Uncommitted changes detected. Commit or stash changes first"
-                }
+                return {"error": "Uncommitted changes detected. Commit or stash changes first"}
 
             # Fetch latest
             self._run_command(["git", "fetch"], cwd=self.repo_path)
@@ -214,9 +200,7 @@ class OTAManager:
             self._run_command(["git", "fetch"], cwd=self.repo_path)
 
             # Get all branches
-            branches_output = self._run_command(
-                ["git", "branch", "-r"], cwd=self.repo_path
-            ).strip()
+            branches_output = self._run_command(["git", "branch", "-r"], cwd=self.repo_path).strip()
 
             branches = []
             for line in branches_output.split("\n"):
@@ -312,9 +296,7 @@ class OTAManager:
                             {
                                 "name": file.replace(".tar.gz", ""),
                                 "size": stat.st_size,
-                                "created": datetime.fromtimestamp(
-                                    stat.st_mtime
-                                ).isoformat(),
+                                "created": datetime.fromtimestamp(stat.st_mtime).isoformat(),
                             }
                         )
 
@@ -339,9 +321,7 @@ class OTAManager:
 
             # Restart kiosk if configured
             try:
-                self._run_command(
-                    ["sudo", "systemctl", "restart", "pi-analytics-kiosk"]
-                )
+                self._run_command(["sudo", "systemctl", "restart", "pi-analytics-kiosk"])
             except subprocess.CalledProcessError:
                 pass  # Kiosk might not be configured
 
@@ -400,9 +380,7 @@ class OTAManager:
     def test_git_connection(self) -> Dict[str, Any]:
         """Test Git connectivity"""
         try:
-            output = self._run_command(
-                ["git", "ls-remote", "origin"], cwd=self.repo_path
-            )
+            output = self._run_command(["git", "ls-remote", "origin"], cwd=self.repo_path)
             return {"success": True, "connected": bool(output)}
         except Exception as e:
             return {"error": str(e), "connected": False}
@@ -466,9 +444,7 @@ class OTAManager:
 
     def _run_command(self, cmd: List[str], cwd: str = None) -> str:
         """Run a shell command and return output"""
-        result = subprocess.run(
-            cmd, cwd=cwd, capture_output=True, text=True, check=True
-        )
+        result = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, check=True)
         return result.stdout
 
     def _cleanup_old_backups(self):

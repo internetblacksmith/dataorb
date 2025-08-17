@@ -140,12 +140,9 @@ The intelligent detection system recognizes these patterns and won't flag them a
 
 ```bash
 # Sync documentation to Docsify (docs/ folder)
-./scripts/sync-docs.sh
+./scripts/docs/sync-docs.sh
 
-# Run documentation quality check
-./scripts/check-docs.sh
-
-# Run full quality gate (includes docs sync and check)
+# Run full quality gate
 ./quality-check.sh
 
 # Preview documentation website locally
@@ -187,9 +184,9 @@ These indicate documentation is out of date:
 ## Review Process
 
 Before marking ANY task as complete:
-1. Run `./scripts/check-docs.sh`
-2. Review this checklist
-3. Update all affected documentation
+1. Review this checklist
+2. Update all affected documentation
+3. Sync documentation with `./scripts/docs/sync-docs.sh`
 4. Commit docs in same PR as code
 5. Verify quality gate passes
 

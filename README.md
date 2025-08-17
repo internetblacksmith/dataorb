@@ -14,6 +14,14 @@ IoT dashboard displaying PostHog analytics on a Raspberry Pi with HyperPixel Rou
 - Integrated Flask server (single port)
 - Auto-refresh dashboard
 
+## Hardware Requirements
+
+- **Raspberry Pi Zero W** (or Pi 3/4/5 for better performance)
+- **HyperPixel 2.1 Round Touch Display** by Pimoroni
+- **MicroSD Card** (8GB minimum, 16GB+ recommended)
+- **Power Supply** (5V 2.5A for Pi Zero W, more for Pi 3/4/5)
+- **Optional: 3D Printed Case** - [Download STL files from Cults3D](https://cults3d.com/en/design-collections/printminion/various-cases-for-hyperpixel-2-1-round-touch-display-by-pimoroni)
+
 ## Quick Start
 
 ### Development Mode
@@ -68,14 +76,10 @@ This project enforces strict quality standards:
 ```bash
 # Run all quality checks (required before committing)
 ./quality-check.sh
-
-# Run documentation check separately
-./scripts/check-docs.sh
 ```
 
 Quality checks include:
 - Python: Black formatting, Flake8 linting, MyPy types, pytest
 - Frontend: ESLint, Prettier, TypeScript, Jest tests
-- Documentation: Up-to-date and complete documentation
 
-**Documentation updates are MANDATORY** - treated as failing tests if not updated.
+The quality gate ensures all code is properly formatted, linted, and tested before commits.

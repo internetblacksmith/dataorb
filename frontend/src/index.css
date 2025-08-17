@@ -1,3 +1,22 @@
+/* Optimized for both HyperPixel Round Display and browser viewing */
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Prevent theme flash - hide content until theme loads */
+body:not([data-theme-loaded]) #root {
+  opacity: 0;
+  transition: opacity 0.2s ease-in;
+}
+
+body[data-theme-loaded] #root {
+  opacity: 1;
+}
+
 body {
   margin: 0;
   font-family:
@@ -5,8 +24,42 @@ body {
     'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 100%);
+  min-height: 100vh;
+  width: 100%;
+  height: 100%;
+}
+
+#root {
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
 }
 
 * {
   box-sizing: border-box;
+}
+
+/* Config page specific root styles */
+#root:has(.config-page) {
+  padding: 0;
+  display: block;
+  min-height: 100vh;
+}
+
+/* Dashboard specific root styles */
+#root:has(.app, .dashboard-modern, .dashboard-analytics, .dashboard-executive) {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+}
+
+/* Ensure loading states maintain circular shape */
+.loading, .loading-ring, .loading-circle, .loading-spinner {
+  aspect-ratio: 1 / 1 !important;
+  flex-shrink: 0;
 }

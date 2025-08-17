@@ -8,6 +8,7 @@
 - MicroSD Card (32GB+ recommended)
 - Power Supply (27W USB-C PD recommended for Pi 5)
 - HDMI cable (or micro-HDMI to HDMI adapter)
+- Optional: 3D Printed Case - [Download STL files from Cults3D](https://cults3d.com/en/design-collections/printminion/various-cases-for-hyperpixel-2-1-round-touch-display-by-pimoroni)
 
 ### Advantages Over Pi Zero W + HyperPixel
 - ✅ No GPIO conflicts - WiFi and display work together
