@@ -13,7 +13,7 @@ sleep 5
 
 # Wait for backend (silent check)
 for i in {1..60}; do
-    curl -s http://localhost:5000/api/health >/dev/null 2>&1 && break
+    curl -s http://localhost/api/health >/dev/null 2>&1 && break
     sleep 1
 done
 
@@ -32,9 +32,9 @@ sleep 2
 {% if display_type == 'hyperpixel_round' %}
 # HyperPixel Round - Use Surf for Pi Zero W
 if command -v surf >/dev/null 2>&1; then
-    exec surf -F http://localhost:5000
+    exec surf -F http://localhost
 elif command -v midori >/dev/null 2>&1; then
-    exec midori -e Fullscreen -a http://localhost:5000
+    exec midori -e Fullscreen -a http://localhost
 else
     exit 1
 fi
@@ -50,8 +50,8 @@ if command -v chromium-browser >/dev/null 2>&1; then
         --disable-pinch \
         --overscroll-history-navigation=0 \
         --start-fullscreen \
-        http://localhost:5000
+        http://localhost
 else
-    exec surf -F http://localhost:5000
+    exec surf -F http://localhost
 fi
 {% endif %}

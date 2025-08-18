@@ -557,8 +557,27 @@ def get_stats():
 @app.route("/api/health")
 def health_check():
     """Health check endpoint"""
-    # Check if we're in AP mode
-    ap_mode = os.path.exists("/tmp/wifi_ap_mode")
+    # Check if we're in AP mode - but only if no network connection exists
+    ap_mode = False
+    
+    # Check for active network connection (ethernet or wifi)
+    import subprocess
+    try:
+        # Check if we have any active network connection with internet access
+        result = subprocess.run(
+            ["ping", "-c", "1", "-W", "1", "8.8.8.8"],
+            capture_output=True,
+            text=True,
+            timeout=2
+        )
+        has_internet = result.returncode == 0
+        
+        # Only consider AP mode if no internet and the marker file exists
+        if not has_internet and os.path.exists("/tmp/wifi_ap_mode"):
+            ap_mode = True
+    except Exception:
+        # If we can't determine network status, check the marker file
+        ap_mode = os.path.exists("/tmp/wifi_ap_mode")
 
     return jsonify(
         {
@@ -574,21 +593,33 @@ def network_status():
     """Check network and AP mode status"""
     import subprocess
 
-    # Check if AP mode marker exists
-    ap_mode = os.path.exists("/tmp/wifi_ap_mode")
-
-    # Check network connectivity
+    # Check network connectivity first
     has_network = False
+    has_ethernet = False
     try:
+        # Check for internet connectivity
         result = subprocess.run(
             ["ping", "-c", "1", "-W", "2", "8.8.8.8"], capture_output=True, timeout=3
         )
         has_network = result.returncode == 0
+        
+        # Check if ethernet is connected
+        eth_result = subprocess.run(
+            ["ip", "link", "show", "eth0"], capture_output=True, text=True, timeout=2
+        )
+        if eth_result.returncode == 0 and "state UP" in eth_result.stdout:
+            has_ethernet = True
     except (subprocess.TimeoutExpired, subprocess.SubprocessError):
         pass
 
+    # Only consider AP mode if no network connection (ethernet or wifi)
+    ap_mode = False
+    if not has_network and not has_ethernet:
+        ap_mode = os.path.exists("/tmp/wifi_ap_mode")
+
     # Get current IP addresses
     ips = []
+    connection_type = "none"
     try:
         result = subprocess.run(["ip", "addr", "show"], capture_output=True, text=True, timeout=2)
         if result.returncode == 0:
@@ -596,6 +627,11 @@ def network_status():
                 if "inet " in line and "127.0.0.1" not in line:
                     ip = line.strip().split()[1].split("/")[0]
                     ips.append(ip)
+                    # Determine connection type
+                    if "eth0" in line:
+                        connection_type = "ethernet"
+                    elif "wlan0" in line and not ap_mode:
+                        connection_type = "wifi"
     except (subprocess.TimeoutExpired, subprocess.SubprocessError):
         pass
 
@@ -603,6 +639,8 @@ def network_status():
         {
             "ap_mode": ap_mode,
             "has_network": has_network,
+            "connected": has_network,
+            "connection_type": connection_type,
             "ip_addresses": ips,
             "ap_ssid": "DataOrb-Setup" if ap_mode else None,
             "ap_password": "dataorb123" if ap_mode else None,
@@ -971,5 +1009,13 @@ if __name__ == "__main__":
     except Exception as e:
         logger.error(f"Boot update check failed: {e}")
 
-    app.run(host="0.0.0.0", port=5000, debug=False)
+    # Run on port 80 for production IoT device (requires capability or root)
+    # Falls back to port 5000 if port 80 is not available
+    port = 80
+    try:
+        app.run(host="0.0.0.0", port=port, debug=False)
+    except PermissionError:
+        logger.warning("Cannot bind to port 80, falling back to port 5000")
+        port = 5000
+        app.run(host="0.0.0.0", port=port, debug=False)
 

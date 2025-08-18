@@ -189,9 +189,28 @@
         if [ ! -f {{ overlay_dir }}/hyperpixel2r.dtbo ]; then
           if [ -f /tmp/hyperpixel2r/dist/hyperpixel2r.dtbo ]; then
             cp /tmp/hyperpixel2r/dist/hyperpixel2r.dtbo {{ overlay_dir }}/
+            echo "Overlay copied from repository"
+          elif [ -f /tmp/hyperpixel2r/hyperpixel2r.dtbo ]; then
+            cp /tmp/hyperpixel2r/hyperpixel2r.dtbo {{ overlay_dir }}/
+            echo "Overlay copied from repository root"
+          else
+            echo "Warning: Could not find overlay file in repository"
           fi
+        else
+          echo "Overlay already exists"
         fi
+      register: overlay_copy_result
       when: display_type == 'hyperpixel_round'
+      tags: ['display', 'hyperpixel']
+    
+    - name: Ensure overlay has correct permissions
+      file:
+        path: "{{ overlay_dir }}/hyperpixel2r.dtbo"
+        mode: '0755'
+        owner: root
+        group: root
+      when: display_type == 'hyperpixel_round'
+      ignore_errors: yes
       tags: ['display', 'hyperpixel']
     
     # Clean existing configuration
@@ -280,6 +299,10 @@
           dpi_mode=87                     # Custom display mode
           dpi_output_format=0x7f216       # 18-bit RGB format
           dpi_timings=480 0 10 16 55 480 0 15 60 15 0 0 0 60 0 19200000 6  # Display timings
+          
+          # Enable I2C and SPI for display communication
+          dtparam=i2c_arm=on
+          dtparam=spi=on
       when: display_type == 'hyperpixel_round'
       tags: ['display', 'hyperpixel']
     
@@ -362,6 +385,77 @@
           - "OS Version: {{ os_version }}"
       when: display_type == 'hyperpixel_round'
       tags: ['display']
+    
+    # Configure HyperPixel backlight control
+    - name: Install raspi-gpio for backlight control
+      apt:
+        name: raspi-gpio
+        state: present
+      when: display_type == 'hyperpixel_round'
+      tags: ['display', 'hyperpixel']
+    
+    - name: Create HyperPixel backlight enable script
+      copy:
+        content: |
+          #!/bin/bash
+          # Enable HyperPixel 2.1 Round backlight
+          # GPIO 19 controls the backlight (HIGH = on)
+          
+          # Wait for system to stabilize
+          sleep 5
+          
+          # Enable backlight using raspi-gpio
+          raspi-gpio set 19 op dh 2>/dev/null || {
+              # Fallback to sysfs method if raspi-gpio fails
+              echo 19 > /sys/class/gpio/export 2>/dev/null
+              sleep 0.5
+              echo out > /sys/class/gpio/gpio19/direction 2>/dev/null
+              echo 1 > /sys/class/gpio/gpio19/value 2>/dev/null
+          }
+          
+          # Log backlight activation
+          echo "HyperPixel backlight enabled at $(date)" >> /var/log/hyperpixel-backlight.log
+        dest: /usr/local/bin/hyperpixel-backlight.sh
+        mode: '0755'
+      when: display_type == 'hyperpixel_round'
+      tags: ['display', 'hyperpixel']
+    
+    - name: Add backlight enable to rc.local before exit
+      lineinfile:
+        path: /etc/rc.local
+        insertbefore: '^exit 0'
+        line: '/usr/local/bin/hyperpixel-backlight.sh &'
+        create: yes
+      when: display_type == 'hyperpixel_round'
+      tags: ['display', 'hyperpixel']
+    
+    - name: Create systemd service for HyperPixel backlight
+      copy:
+        content: |
+          [Unit]
+          Description=HyperPixel Display Backlight Control
+          After=sysinit.target
+          Before=getty.target
+          
+          [Service]
+          Type=oneshot
+          ExecStart=/usr/local/bin/hyperpixel-backlight.sh
+          RemainAfterExit=yes
+          
+          [Install]
+          WantedBy=multi-user.target
+        dest: /etc/systemd/system/hyperpixel-backlight.service
+        mode: '0644'
+      when: display_type == 'hyperpixel_round'
+      tags: ['display', 'hyperpixel', 'services']
+    
+    - name: Enable HyperPixel backlight service
+      systemd:
+        name: hyperpixel-backlight
+        enabled: yes
+        daemon_reload: yes
+      when: display_type == 'hyperpixel_round'
+      tags: ['display', 'hyperpixel', 'services']
     
     # ============================================
     # Phase 3: Clean Boot Configuration
@@ -602,9 +696,18 @@
           tags: ['app', 'nodejs']
         
         - name: Run NodeSource setup script
-          command: /tmp/nodesource_setup.sh
+          shell: |
+            # Run with reduced memory pressure for Pi Zero W
+            export DEBIAN_FRONTEND=noninteractive
+            bash /tmp/nodesource_setup.sh
           args:
             creates: /etc/apt/sources.list.d/nodesource.list
+          tags: ['app', 'nodejs']
+        
+        - name: Clean apt cache before Node.js install
+          apt:
+            autoclean: yes
+            autoremove: yes
           tags: ['app', 'nodejs']
         
         - name: Install Node.js from NodeSource
@@ -612,6 +715,9 @@
             name: nodejs
             state: present
             update_cache: yes
+            dpkg_options: 'force-confold,force-confdef'
+          environment:
+            DEBIAN_FRONTEND: noninteractive
           retries: 3
           delay: 10
           register: nodejs_install
@@ -629,11 +735,26 @@
       command: node --version
       register: node_version
       changed_when: false
+      failed_when: false  # Don't fail if node isn't ready yet
+      tags: ['app', 'nodejs']
+    
+    - name: Wait for Node.js to be available
+      command: node --version
+      register: node_version_retry
+      until: node_version_retry.rc == 0
+      retries: 5
+      delay: 10
+      when: node_version.rc != 0
+      tags: ['app', 'nodejs']
+    
+    - name: Set final node version
+      set_fact:
+        final_node_version: "{{ node_version.stdout if node_version.rc == 0 else node_version_retry.stdout }}"
       tags: ['app', 'nodejs']
     
     - name: Display installed Node.js version
       debug:
-        msg: "Installed Node.js version: {{ node_version.stdout }}"
+        msg: "Installed Node.js version: {{ final_node_version }}"
       tags: ['app', 'nodejs']
     
     - name: Verify npm is installed
@@ -742,6 +863,67 @@
       until: pip_install.rc == 0
       tags: ['app', 'backend']
     
+    - name: Create default device_config.json if not exists
+      copy:
+        content: |
+          {
+            "posthog": {
+              "api_key": "",
+              "project_id": "",
+              "host": "https://eu.posthog.com"
+            },
+            "display": {
+              "refresh_interval": 30,
+              "theme": "posthog",
+              "brightness": 100,
+              "rotation": 0,
+              "screensaver_timeout": 0,
+              "metrics": {
+                "classic": {
+                  "top": {
+                    "type": "events_24h",
+                    "label": "Events",
+                    "enabled": true
+                  },
+                  "left": {
+                    "type": "unique_users_24h",
+                    "label": "Users",
+                    "enabled": true
+                  },
+                  "right": {
+                    "type": "page_views_24h",
+                    "label": "Views",
+                    "enabled": true
+                  }
+                },
+                "analytics": {
+                  "center": {
+                    "type": "events_24h",
+                    "label": "Events Today",
+                    "enabled": true
+                  }
+                }
+              }
+            },
+            "network": {
+              "wifi_country": "US"
+            },
+            "ota": {
+              "enabled": true,
+              "branch": "main",
+              "check_on_boot": true,
+              "auto_pull": false,
+              "last_update": null
+            },
+            "demo_mode": false
+          }
+        dest: "{{ app_dir }}/backend/device_config.json"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: '0644'
+        force: no  # Don't overwrite if exists
+      tags: ['app', 'config']
+    
     
     # ============================================
     # Phase 6: System Services Setup
@@ -785,7 +967,7 @@
           
           # Wait for backend API to be ready (max 60 seconds)
           for i in {1..60}; do
-              if curl -s http://localhost:5000/api/health >/dev/null 2>&1; then
+              if curl -s http://localhost/api/health >/dev/null 2>&1; then
                   break
               fi
               sleep 1
@@ -865,7 +1047,7 @@
               if ! pgrep -x "Xorg" > /dev/null; then
                   echo "Starting DataOrb Dashboard..."
                   cd {{ app_dir }}
-                  startx ./launch-x.sh -- :0 vt1  # Start X on virtual terminal 1
+                  startx ./start-kiosk.sh -- :0 vt1  # Start X on virtual terminal 1
               fi
           fi
       tags: ['services', 'kiosk', 'autostart']
@@ -1040,7 +1222,7 @@
     
     - name: Wait for backend service to be ready
       wait_for:
-        port: 5000
+        port: 80
         host: localhost
         delay: 5
         timeout: 60
@@ -1048,7 +1230,7 @@
     
     - name: Check backend API health
       uri:
-        url: http://localhost:5000/api/health
+        url: http://localhost/api/health
         method: GET
         status_code: 200
       register: api_health
@@ -1059,7 +1241,7 @@
     
     - name: Check if frontend is accessible
       uri:
-        url: http://localhost:5000/
+        url: http://localhost/
         method: GET
         status_code: 200
       register: frontend_health
@@ -1097,13 +1279,13 @@
           - "Backend service: systemctl status pi-analytics-backend"
           - "{{ 'Auto-start: /usr/local/bin/pi-dashboard-autostart.sh' if display_type == 'hyperpixel_round' else 'No display configured' }}"
           - ""
-          - "Access the dashboard at: http://{{ ansible_host }}:5000"
-          - "Configure DataOrb Settings: http://{{ ansible_host }}:5000/config"
+          - "Access the dashboard at: http://{{ ansible_host }}"
+          - "Configure DataOrb Settings: http://{{ ansible_host }}/config"
           - ""
           - "WiFi AP Mode (when no network):"
           - "  SSID: {{ wifi_ap_ssid }}"
           - "  Password: {{ wifi_ap_password }}"
-          - "  Config URL: http://192.168.4.1:5000"
+          - "  Config URL: http://192.168.4.1"
           - ""
           - "{{ 'Display: HyperPixel 2.1 Round with Surf browser (Pi Zero W compatible)' if display_type == 'hyperpixel_round' else '' }}"
           - "{{ 'Note: Reboot required for auto-start display!' if display_type == 'hyperpixel_round' else '' }}"
