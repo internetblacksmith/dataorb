@@ -17,6 +17,102 @@ DataOrb is an IoT dashboard that displays PostHog analytics on a Raspberry Pi Ze
 - **Hardware**: Raspberry Pi Zero W + HyperPixel Round display
 - **OTA Updates**: Git-based over-the-air update system with branch management
 
+## ⚠️ CRITICAL: HyperPixel Display Troubleshooting History
+
+### The LCD Display Problem Journey
+
+We encountered persistent issues with the HyperPixel 2.1 Round display not working after ansible playbook installation. Here's the complete troubleshooting history and lessons learned:
+
+#### Problem Timeline:
+1. **Initial Issue**: LCD black screen after running ansible playbook on fresh Pi installation
+2. **Symptoms**: 
+   - Display backlight on but screen black
+   - All services running but no visual output
+   - Works when manually running HyperPixel installer
+
+#### Root Causes Discovered:
+
+##### 1. **Missing HyperPixel Components**
+- **Problem**: Manual overlay copy wasn't sufficient
+- **Fix**: Must use official HyperPixel installer (`install.sh`) which:
+  - Compiles device tree overlay from source
+  - Installs hyperpixel2r-init binary
+  - Creates systemd service
+  - Sets up proper boot configuration
+
+##### 2. **Wrong Framebuffer Output**
+- **Problem**: X server outputting to fb1 (HDMI) instead of fb0 (HyperPixel)
+- **Diagnostics showed**: Two framebuffers (fb0: 480x480, fb1: 720x480)
+- **Fix**: Added X11 configuration to force fb0:
+  ```
+  /etc/X11/xorg.conf.d/99-hyperpixel.conf
+  Section "Device"
+      Driver "fbdev"
+      Option "fbdev" "/dev/fb0"
+  ```
+
+##### 3. **Missing Display Service**
+- **Problem**: `pi-analytics-display.service` was completely missing from playbook
+- **Fix**: Created service template and added to playbook
+
+##### 4. **Service Startup Conflicts**
+- **Problem**: Multiple X server instances from rc.local and systemd
+- **Symptoms**: Display service inactive, X already running from rc.local
+- **Fix**: 
+  - Removed pi-dashboard-autostart.sh from rc.local
+  - Display service now manages entire X server lifecycle
+  - Changed service to run as root (permission issues)
+  - Target multi-user.target (not graphical.target)
+
+##### 5. **ARMv6 Compatibility** (Pi Zero W specific)
+- **Problem**: NodeSource doesn't support ARMv6 architecture
+- **Fix**: Use unofficial Node.js builds for ARMv6
+
+##### 6. **Port 80 Conflicts**
+- **Problem**: nginx blocking port 80
+- **Fix**: Detect and stop nginx in playbook, add CAP_NET_BIND_SERVICE capability
+
+#### Diagnostic Tools Created:
+- `debug/display-diagnostic.sh` - Comprehensive display troubleshooting script that checks:
+  - HyperPixel components installation
+  - Framebuffer devices and configuration
+  - Service status and dependencies
+  - X server and display processes
+  - GPIO backlight status
+  - Boot configuration
+  - Permission issues
+
+#### Key Lessons for Future Display Issues:
+
+**ALWAYS CHECK THESE FIRST:**
+1. Run diagnostic: `./debug/display-diagnostic.sh`
+2. Verify framebuffer: `ls -la /dev/fb*` (should show fb0 480x480)
+3. Check X server: `ps aux | grep Xorg`
+4. Service status: `systemctl status pi-analytics-display`
+5. Backlight GPIO: `raspi-gpio get 19` (should be OUTPUT, level=1)
+
+**COMMON FIXES TO TRY:**
+```bash
+# Turn on backlight
+sudo raspi-gpio set 19 op dh
+
+# Restart services in order
+sudo systemctl restart hyperpixel2r-init
+sudo systemctl restart pi-analytics-backend
+sudo systemctl restart pi-analytics-display
+
+# Manual test
+sudo xinit /usr/bin/surf -F http://localhost -- :0 -nocursor vt2
+```
+
+**ANSIBLE PLAYBOOK REQUIREMENTS:**
+1. Must run official HyperPixel installer (not just copy files)
+2. Must create X11 config to force fb0
+3. Must create and enable pi-analytics-display service
+4. Must NOT use rc.local for X server startup
+5. Service must target multi-user.target
+6. Service must run as root for X permissions
+
 ## Quality Gate Requirements
 
 **🚨 CRITICAL**: After completing any development task, you MUST run the quality gate checks to ensure:

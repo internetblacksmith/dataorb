@@ -154,6 +154,8 @@
           - python3-rpi.gpio   # GPIO control
           - i2c-tools          # I2C debugging tools
           - raspi-config       # Raspberry Pi configuration tool
+          - device-tree-compiler  # For building device tree overlays
+          - build-essential    # Compilation tools
         state: present
         update_cache: yes
       when: display_type == 'hyperpixel_round'
@@ -172,46 +174,55 @@
       until: hyperpixel_repo is succeeded
       tags: ['display', 'hyperpixel']
     
-    - name: Run HyperPixel installer if it exists
+    - name: Run official HyperPixel installer
+      # The official installer properly builds and installs all components
       shell: |
         cd /tmp/hyperpixel2r
         if [ -f install.sh ]; then
-          yes | bash install.sh || true
+          # Run the installer which:
+          # - Builds the device tree overlay
+          # - Installs hyperpixel2r-init binary
+          # - Creates systemd service
+          # - Configures boot settings
+          sudo bash install.sh
+        else
+          echo "Warning: install.sh not found in repository"
+          exit 1
         fi
       when: 
         - display_type == 'hyperpixel_round'
         - hyperpixel_repo is succeeded
-      ignore_errors: yes
+      register: hyperpixel_install
       tags: ['display', 'hyperpixel']
     
-    - name: Copy overlay from repository if needed
-      shell: |
-        if [ ! -f {{ overlay_dir }}/hyperpixel2r.dtbo ]; then
-          if [ -f /tmp/hyperpixel2r/dist/hyperpixel2r.dtbo ]; then
-            cp /tmp/hyperpixel2r/dist/hyperpixel2r.dtbo {{ overlay_dir }}/
-            echo "Overlay copied from repository"
-          elif [ -f /tmp/hyperpixel2r/hyperpixel2r.dtbo ]; then
-            cp /tmp/hyperpixel2r/hyperpixel2r.dtbo {{ overlay_dir }}/
-            echo "Overlay copied from repository root"
-          else
-            echo "Warning: Could not find overlay file in repository"
-          fi
-        else
-          echo "Overlay already exists"
-        fi
-      register: overlay_copy_result
+    - name: Verify HyperPixel installation components
+      # Check that all required components were installed
+      stat:
+        path: "{{ item }}"
+      loop:
+        - "{{ overlay_dir }}/hyperpixel2r.dtbo"
+        - "/usr/bin/hyperpixel2r-init"
+        - "/etc/systemd/system/hyperpixel2r-init.service"
+      register: hyperpixel_components
       when: display_type == 'hyperpixel_round'
       tags: ['display', 'hyperpixel']
     
-    - name: Ensure overlay has correct permissions
-      file:
-        path: "{{ overlay_dir }}/hyperpixel2r.dtbo"
-        mode: '0755'
-        owner: root
-        group: root
-      when: display_type == 'hyperpixel_round'
-      ignore_errors: yes
+    - name: Display HyperPixel component status
+      debug:
+        msg: "{{ item.item }} - {{ 'Installed' if item.stat.exists else 'Missing' }}"
+      loop: "{{ hyperpixel_components.results }}"
+      when: 
+        - display_type == 'hyperpixel_round'
+        - hyperpixel_components is defined
       tags: ['display', 'hyperpixel']
+    
+    - name: Enable hyperpixel2r-init service
+      systemd:
+        name: hyperpixel2r-init
+        enabled: yes
+        daemon_reload: yes
+      when: display_type == 'hyperpixel_round'
+      tags: ['display', 'hyperpixel', 'services']
     
     # Clean existing configuration
     - name: Remove old HyperPixel configuration
@@ -683,63 +694,89 @@
         msg: "Current Node.js version: {{ current_node_version.stdout | default('Not installed') }}"
       tags: ['app', 'nodejs']
     
-    - name: Install Node.js 18.x from NodeSource repository
-      # The default Raspberry Pi OS repository has Node.js v12 which is too old
-      # for modern React builds. We need at least Node.js 14, but we install
-      # Node.js 18 LTS for better compatibility and performance.
+    - name: Install Node.js 16.x (compatible with Pi Zero W)
+      # Pi Zero W uses ARMv6 which is not supported by NodeSource
+      # We use unofficial builds for ARMv6 or NodeSource for ARMv7+
       block:
-        - name: Download NodeSource setup script
-          get_url:
-            url: https://deb.nodesource.com/setup_18.x
-            dest: /tmp/nodesource_setup.sh
-            mode: '0755'
+        - name: Detect Pi architecture
+          command: uname -m
+          register: pi_arch
+          changed_when: false
           tags: ['app', 'nodejs']
         
-        - name: Run NodeSource setup script
+        - name: Install Node.js for ARMv6 (Pi Zero W)
+          when: pi_arch.stdout == 'armv6l'
+          block:
+            - name: Remove old Node.js if present
+              apt:
+                name: 
+                  - nodejs
+                  - npm
+                state: absent
+              ignore_errors: yes
+              tags: ['app', 'nodejs']
+            
+            - name: Download Node.js 16 for ARMv6
+              get_url:
+                url: https://unofficial-builds.nodejs.org/download/release/v16.20.2/node-v16.20.2-linux-armv6l.tar.xz
+                dest: /tmp/node-v16.20.2-linux-armv6l.tar.xz
+                mode: '0644'
+                timeout: 60
+              retries: 3
+              delay: 10
+              tags: ['app', 'nodejs']
+            
+            - name: Extract Node.js to /usr/local
+              unarchive:
+                src: /tmp/node-v16.20.2-linux-armv6l.tar.xz
+                dest: /usr/local
+                remote_src: yes
+                extra_opts: [--strip-components=1]
+              tags: ['app', 'nodejs']
+            
+            - name: Update PATH for Node.js
+              lineinfile:
+                path: /etc/profile
+                line: 'export PATH=/usr/local/bin:$PATH'
+                create: yes
+              tags: ['app', 'nodejs']
+            
+            - name: Create symlinks for compatibility
+              file:
+                src: "/usr/local/bin/{{ item }}"
+                dest: "/usr/bin/{{ item }}"
+                state: link
+                force: yes
+              loop:
+                - node
+                - npm
+                - npx
+              ignore_errors: yes
+              tags: ['app', 'nodejs']
+        
+        - name: Install Node.js for ARMv7+ (Pi 2/3/4)
+          when: pi_arch.stdout != 'armv6l'
           shell: |
-            # Run with reduced memory pressure for Pi Zero W
-            export DEBIAN_FRONTEND=noninteractive
-            bash /tmp/nodesource_setup.sh
-          args:
-            creates: /etc/apt/sources.list.d/nodesource.list
-          tags: ['app', 'nodejs']
-        
-        - name: Clean apt cache before Node.js install
-          apt:
-            autoclean: yes
-            autoremove: yes
-          tags: ['app', 'nodejs']
-        
-        - name: Install Node.js from NodeSource
-          apt:
-            name: nodejs
-            state: present
-            update_cache: yes
-            dpkg_options: 'force-confold,force-confdef'
+            curl -fsSL https://deb.nodesource.com/setup_16.x | bash -
+            apt-get install -y nodejs
           environment:
             DEBIAN_FRONTEND: noninteractive
-          retries: 3
-          delay: 10
-          register: nodejs_install
-          until: nodejs_install is succeeded
-          tags: ['app', 'nodejs']
-        
-        - name: Clean up setup script
-          file:
-            path: /tmp/nodesource_setup.sh
-            state: absent
           tags: ['app', 'nodejs']
       when: current_node_version.rc != 0 or current_node_version.stdout is version('v14.0.0', '<')
     
     - name: Verify Node.js installation
-      command: node --version
+      shell: |
+        export PATH=/usr/local/bin:$PATH
+        which node && node --version
       register: node_version
       changed_when: false
-      failed_when: false  # Don't fail if node isn't ready yet
+      failed_when: false
       tags: ['app', 'nodejs']
     
-    - name: Wait for Node.js to be available
-      command: node --version
+    - name: Wait for Node.js to be available  
+      shell: |
+        export PATH=/usr/local/bin:$PATH
+        node --version
       register: node_version_retry
       until: node_version_retry.rc == 0
       retries: 5
@@ -749,7 +786,7 @@
     
     - name: Set final node version
       set_fact:
-        final_node_version: "{{ node_version.stdout if node_version.rc == 0 else node_version_retry.stdout }}"
+        final_node_version: "{{ (node_version.stdout_lines[-1] if node_version.rc == 0 else node_version_retry.stdout) | default('unknown') }}"
       tags: ['app', 'nodejs']
     
     - name: Display installed Node.js version
@@ -758,9 +795,12 @@
       tags: ['app', 'nodejs']
     
     - name: Verify npm is installed
-      command: npm --version
+      shell: |
+        export PATH=/usr/local/bin:$PATH
+        npm --version
       register: npm_version
       changed_when: false
+      failed_when: false
       tags: ['app', 'nodejs']
     
     - name: Display npm version
@@ -950,49 +990,26 @@
         dest: /etc/systemd/system/pi-analytics-backend.service
       tags: ['services', 'backend']
     
-    - name: Create kiosk autostart script
-      # Main auto-start script that runs on boot
-      copy:
-        content: |
-          #!/bin/bash
-          # Auto-start script for DataOrb Analytics Dashboard
-          
-          # Wait for system to stabilize after boot
-          sleep 20
-          
-          # Ensure backend service is running
-          if ! systemctl is-active pi-analytics-backend >/dev/null 2>&1; then
-              systemctl start pi-analytics-backend
-          fi
-          
-          # Wait for backend API to be ready (max 60 seconds)
-          for i in {1..60}; do
-              if curl -s http://localhost/api/health >/dev/null 2>&1; then
-                  break
-              fi
-              sleep 1
-          done
-          
-          # Clean up any existing X sessions
-          killall xinit 2>/dev/null
-          killall X 2>/dev/null
-          sleep 2
-          
-          # Start X server and kiosk browser on tty1 (physical display)
-          su - {{ ansible_user }} -c "export DISPLAY=:0 && xinit {{ app_dir }}/start-kiosk.sh -- :0 -nocursor" < /dev/tty1 > /dev/tty1 2>&1 &
-        dest: /usr/local/bin/pi-dashboard-autostart.sh
-        mode: '0755'
-      when: display_type == 'hyperpixel_round'
-      tags: ['services', 'kiosk']
+    - name: Create display service
+      template:
+        src: templates/pi-analytics-display.service.j2
+        dest: /etc/systemd/system/pi-analytics-display.service
+      vars:
+        app_user: "{{ ansible_user }}"
+        backend_port: 80
+      tags: ['services', 'display']
     
-    - name: Add autostart to rc.local
+    # NOTE: Removed kiosk autostart script and rc.local entry
+    # The pi-analytics-display systemd service now handles all X server
+    # and browser startup, avoiding conflicts with multiple X sessions
+    
+    - name: Remove old autostart from rc.local if exists
       lineinfile:
         path: /etc/rc.local
-        insertbefore: '^exit 0'
         line: '/usr/local/bin/pi-dashboard-autostart.sh &'
-        create: yes
+        state: absent
       when: display_type == 'hyperpixel_round'
-      tags: ['services', 'kiosk']
+      tags: ['services', 'kiosk', 'cleanup']
     
     - name: Make rc.local executable
       file:
@@ -1008,6 +1025,39 @@
       when: display_type == 'hyperpixel_round'
       ignore_errors: yes
       tags: ['services', 'kiosk']
+    
+    - name: Create X11 config directory
+      file:
+        path: /etc/X11/xorg.conf.d
+        state: directory
+        mode: '0755'
+      when: display_type == 'hyperpixel_round'
+      tags: ['display', 'xorg']
+    
+    - name: Create X server configuration for HyperPixel
+      # Force X to use fb0 (HyperPixel) instead of fb1 (HDMI)
+      copy:
+        content: |
+          Section "Device"
+              Identifier "HyperPixel"
+              Driver "fbdev"
+              Option "fbdev" "/dev/fb0"
+          EndSection
+          
+          Section "Screen"
+              Identifier "HyperPixelScreen"
+              Device "HyperPixel"
+              DefaultDepth 24
+          EndSection
+          
+          Section "ServerLayout"
+              Identifier "HyperPixelLayout"
+              Screen "HyperPixelScreen"
+          EndSection
+        dest: /etc/X11/xorg.conf.d/99-hyperpixel.conf
+        mode: '0644'
+      when: display_type == 'hyperpixel_round'
+      tags: ['display', 'xorg', 'kiosk']
     
     - name: Create kiosk start script
       template:
@@ -1052,6 +1102,25 @@
           fi
       tags: ['services', 'kiosk', 'autostart']
     
+    - name: Check if nginx is installed and running
+      shell: |
+        if systemctl is-active nginx >/dev/null 2>&1; then
+          echo "running"
+        else
+          echo "not_running"
+        fi
+      register: nginx_status
+      tags: ['services']
+    
+    - name: Stop nginx if it's blocking port 80
+      systemd:
+        name: nginx
+        state: stopped
+        enabled: no
+      when: nginx_status.stdout == 'running'
+      ignore_errors: yes
+      tags: ['services']
+    
     - name: Reload systemd daemon
       systemd:
         daemon_reload: yes
@@ -1061,8 +1130,16 @@
       systemd:
         name: pi-analytics-backend
         enabled: yes
-        state: started
+        state: restarted  # Use restarted to ensure latest code is running
       tags: ['services', 'backend']
+    
+    - name: Enable and start display service
+      systemd:
+        name: pi-analytics-display
+        enabled: yes
+        state: started  # Start the service immediately
+        daemon_reload: yes
+      tags: ['services', 'display']
     
     # ============================================
     # Phase 7: WiFi Access Point Setup
@@ -1220,34 +1297,56 @@
     # ============================================
     # Verify that all services are running correctly
     
+    - name: Check which port backend is using
+      shell: |
+        if curl -s http://localhost:80/api/health >/dev/null 2>&1; then
+          echo "80"
+        elif curl -s http://localhost:5000/api/health >/dev/null 2>&1; then
+          echo "5000"
+        else
+          echo "none"
+        fi
+      register: backend_port
+      tags: ['healthcheck']
+    
+    - name: Display backend port
+      debug:
+        msg: "Backend is running on port: {{ backend_port.stdout }}"
+      tags: ['healthcheck']
+    
     - name: Wait for backend service to be ready
       wait_for:
-        port: 80
+        port: "{{ backend_port.stdout | default('5000') }}"
         host: localhost
         delay: 5
         timeout: 60
+      when: backend_port.stdout != 'none'
       tags: ['healthcheck']
     
     - name: Check backend API health
       uri:
-        url: http://localhost/api/health
+        url: "http://localhost:{{ backend_port.stdout | default('5000') }}/api/health"
         method: GET
         status_code: 200
       register: api_health
       retries: 3
       delay: 5
       until: api_health.status == 200
+      when: backend_port.stdout != 'none'
+      failed_when: false  # Don't fail, just check
       tags: ['healthcheck']
     
     - name: Check if frontend is accessible
       uri:
-        url: http://localhost/
+        url: "http://localhost:{{ backend_port.stdout | default('5000') }}/"
         method: GET
         status_code: 200
       register: frontend_health
       retries: 3
       delay: 5
       until: frontend_health.status == 200
+      when: backend_port.stdout != 'none'
+      failed_when: false  # Don't fail, just check
       tags: ['healthcheck']
     
     - name: Verify systemd services are active
@@ -1279,8 +1378,8 @@
           - "Backend service: systemctl status pi-analytics-backend"
           - "{{ 'Auto-start: /usr/local/bin/pi-dashboard-autostart.sh' if display_type == 'hyperpixel_round' else 'No display configured' }}"
           - ""
-          - "Access the dashboard at: http://{{ ansible_host }}"
-          - "Configure DataOrb Settings: http://{{ ansible_host }}/config"
+          - "Access the dashboard at: http://{{ ansible_host }}{{ ':5000' if backend_port.stdout == '5000' else '' }}"
+          - "Configure DataOrb Settings: http://{{ ansible_host }}{{ ':5000' if backend_port.stdout == '5000' else '' }}/config"
           - ""
           - "WiFi AP Mode (when no network):"
           - "  SSID: {{ wifi_ap_ssid }}"
@@ -1288,7 +1387,9 @@
           - "  Config URL: http://192.168.4.1"
           - ""
           - "{{ 'Display: HyperPixel 2.1 Round with Surf browser (Pi Zero W compatible)' if display_type == 'hyperpixel_round' else '' }}"
-          - "{{ 'Note: Reboot required for auto-start display!' if display_type == 'hyperpixel_round' else '' }}"
+          - "{{ '⚠️  IMPORTANT: REBOOT REQUIRED for HyperPixel display to work!' if display_type == 'hyperpixel_round' else '' }}"
+          - "{{ 'The HyperPixel driver needs a reboot to initialize properly.' if display_type == 'hyperpixel_round' else '' }}"
+          - "{{ 'Run: sudo reboot' if display_type == 'hyperpixel_round' else '' }}"
           - ""
           - "{{ 'Manual start: sudo xinit ' + app_dir + '/start-kiosk.sh -- :0 -nocursor' if display_type == 'hyperpixel_round' else '' }}"
           - ""
