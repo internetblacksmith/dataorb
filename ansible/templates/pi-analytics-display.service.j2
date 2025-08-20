@@ -15,10 +15,10 @@ Environment="XAUTHORITY=/home/{{ app_user }}/.Xauthority"
 Environment="HOME=/home/{{ app_user }}"
 
 # Wait for backend and previous X cleanup
-ExecStartPre=/bin/bash -c 'sleep 10; pkill -x Xorg || true; pkill -x surf || true; sleep 2'
+ExecStartPre=/bin/bash -c 'sleep 10; pkill -x Xorg || true; pkill -x surf || true; pkill -x matchbox-window-manager || true; sleep 2'
 
-# Start X server with surf browser in kiosk mode
-ExecStart=/usr/bin/xinit /usr/bin/surf -F http://localhost:{{ backend_port | default(80) }} -- :0 -nocursor vt2
+# Start X server with window manager and surf browser
+ExecStart=/usr/bin/xinit {{ app_dir }}/scripts/start-display.sh -- :0 -nocursor vt2
 
 # Restart policy
 Restart=on-failure

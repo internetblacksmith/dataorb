@@ -258,6 +258,15 @@
       when: display_type == 'hyperpixel_round'
       tags: ['display']
     
+    - name: Remove any KMS DPI overlay for HyperPixel
+      # The vc4-kms-dpi-hyperpixel2r overlay is for Bookworm but doesn't work well
+      lineinfile:
+        path: "{{ config_path }}"
+        regexp: '^dtoverlay=vc4-kms-dpi-hyperpixel2r'
+        state: absent
+      when: display_type == 'hyperpixel_round'
+      tags: ['display']
+    
     - name: Disable display auto-detect
       replace:
         path: "{{ config_path }}"
@@ -295,6 +304,43 @@
       when: display_type == 'hyperpixel_round'
       ignore_errors: yes
       changed_when: false
+      tags: ['display']
+    
+    # CRITICAL: Set GL driver to Legacy for HyperPixel compatibility
+    - name: Check if GL driver commands are available
+      command: raspi-config nonint get_gldriver
+      register: gl_driver_available
+      when: display_type == 'hyperpixel_round'
+      ignore_errors: yes
+      changed_when: false
+      tags: ['display', 'critical']
+    
+    - name: Set GL driver to Legacy (required for HyperPixel)
+      # The Full KMS driver doesn't work with HyperPixel - must use Legacy
+      command: raspi-config nonint do_gldriver G1
+      when: 
+        - display_type == 'hyperpixel_round'
+        - gl_driver_available.rc == 0
+      register: gl_driver_result
+      changed_when: gl_driver_result.rc == 0
+      ignore_errors: yes
+      tags: ['display', 'critical']
+    
+    - name: Verify GL driver is set to Legacy
+      command: raspi-config nonint get_gldriver
+      register: gl_driver_check
+      when: 
+        - display_type == 'hyperpixel_round'
+        - gl_driver_available.rc == 0
+      changed_when: false
+      tags: ['display']
+    
+    - name: Display GL driver status
+      debug:
+        msg: "GL Driver status: {{ gl_driver_check.stdout | default('unknown') }} (should be 1 for Legacy)"
+      when: 
+        - display_type == 'hyperpixel_round'
+        - gl_driver_check is defined
       tags: ['display']
     
     - name: Add HyperPixel display configuration
@@ -1059,6 +1105,36 @@
       when: display_type == 'hyperpixel_round'
       tags: ['display', 'xorg', 'kiosk']
     
+    - name: Create scripts directory
+      file:
+        path: "{{ app_dir }}/scripts"
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: '0755'
+      when: display_type == 'hyperpixel_round'
+      tags: ['services', 'kiosk']
+    
+    - name: Create display start script
+      # This script starts matchbox window manager and surf browser
+      copy:
+        content: |
+          #!/bin/bash
+          # Start display components for Pi Analytics Dashboard
+          
+          # Start matchbox window manager (no decorations, no cursor)
+          matchbox-window-manager -use_titlebar no -use_cursor no &
+          sleep 2
+          
+          # Start surf browser in fullscreen
+          exec surf -F http://localhost:{{ backend_port | default(80) }}
+        dest: "{{ app_dir }}/scripts/start-display.sh"
+        mode: '0755'
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+      when: display_type == 'hyperpixel_round'
+      tags: ['services', 'kiosk']
+    
     - name: Create kiosk start script
       template:
         src: templates/start-kiosk.sh.j2
@@ -1376,7 +1452,7 @@
           - ""
           - "Application installed at: {{ app_dir }}"
           - "Backend service: systemctl status pi-analytics-backend"
-          - "{{ 'Auto-start: /usr/local/bin/pi-dashboard-autostart.sh' if display_type == 'hyperpixel_round' else 'No display configured' }}"
+          - "Display service: systemctl status pi-analytics-display"
           - ""
           - "Access the dashboard at: http://{{ ansible_host }}{{ ':5000' if backend_port.stdout == '5000' else '' }}"
           - "Configure DataOrb Settings: http://{{ ansible_host }}{{ ':5000' if backend_port.stdout == '5000' else '' }}/config"
@@ -1386,12 +1462,15 @@
           - "  Password: {{ wifi_ap_password }}"
           - "  Config URL: http://192.168.4.1"
           - ""
-          - "{{ 'Display: HyperPixel 2.1 Round with Surf browser (Pi Zero W compatible)' if display_type == 'hyperpixel_round' else '' }}"
-          - "{{ '⚠️  IMPORTANT: REBOOT REQUIRED for HyperPixel display to work!' if display_type == 'hyperpixel_round' else '' }}"
-          - "{{ 'The HyperPixel driver needs a reboot to initialize properly.' if display_type == 'hyperpixel_round' else '' }}"
-          - "{{ 'Run: sudo reboot' if display_type == 'hyperpixel_round' else '' }}"
+          - "{{ 'Display: HyperPixel 2.1 Round with matchbox + surf browser' if display_type == 'hyperpixel_round' else '' }}"
           - ""
-          - "{{ 'Manual start: sudo xinit ' + app_dir + '/start-kiosk.sh -- :0 -nocursor' if display_type == 'hyperpixel_round' else '' }}"
+          - "{{ '🚨 CRITICAL: REBOOT REQUIRED for HyperPixel display!' if display_type == 'hyperpixel_round' else '' }}"
+          - "{{ 'The framebuffer devices are created only after reboot.' if display_type == 'hyperpixel_round' else '' }}"
+          - "{{ 'Without reboot, X server will show: no screens found' if display_type == 'hyperpixel_round' else '' }}"
+          - ""
+          - "{{ 'REBOOT NOW: sudo reboot' if display_type == 'hyperpixel_round' else '' }}"
+          - ""
+          - "{{ 'After reboot, display will auto-start via pi-analytics-display service' if display_type == 'hyperpixel_round' else '' }}"
           - ""
           - "Configuration: All settings managed via device_config.json"
           - "{{ 'OS: ' + os_version + ' (HyperPixel works best with Bullseye)' }}"

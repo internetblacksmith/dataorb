@@ -72,6 +72,34 @@ We encountered persistent issues with the HyperPixel 2.1 Round display not worki
 - **Problem**: nginx blocking port 80
 - **Fix**: Detect and stop nginx in playbook, add CAP_NET_BIND_SERVICE capability
 
+##### 7. **GL Driver Incompatibility** (ROOT CAUSE OF BLACK SCREEN!)
+- **Problem**: Full KMS GL driver doesn't work with HyperPixel
+- **Discovery**: Everything running perfectly but display stays black
+- **Fix**: MUST set GL driver to Legacy using `raspi-config nonint do_gldriver G1`
+- **Verification**: `raspi-config nonint get_gldriver` should return 1
+- **Note**: This was discovered from official Pimoroni documentation - HyperPixel2r is incompatible with Full KMS driver
+
+##### 8. **Reboot Required After Installation** (CRITICAL!)
+- **Problem**: X server error "no screens found" even after successful installation
+- **Discovery**: HyperPixel installer completes but framebuffer devices don't exist until reboot
+- **Symptoms**: `/dev/fb0` doesn't exist, X server can't find screens
+- **Fix**: MUST reboot after HyperPixel installation for driver to initialize
+- **Verification**: After reboot, `ls -la /dev/fb*` should show fb0 with 480x480 resolution
+- **Note**: The device tree overlay only loads at boot time, creating the framebuffer devices
+
+#### Complete HyperPixel Installation Sequence:
+
+**The correct order is CRITICAL for success (verified with test-lcd-install.sh):**
+1. Set GL driver to Legacy (or disable KMS overlays)
+2. Enable SPI and I2C interfaces
+3. Run official HyperPixel installer from Pimoroni GitHub
+4. Create X11 config forcing fb0 output
+5. Install matchbox window manager
+6. **REBOOT - Required for framebuffer creation**
+7. Only then can X server find screens and display work
+
+**Source of Truth**: `scripts/test-lcd-install.sh` - This script successfully installs HyperPixel on fresh SD card
+
 #### Diagnostic Tools Created:
 - `debug/display-diagnostic.sh` - Comprehensive display troubleshooting script that checks:
   - HyperPixel components installation
@@ -82,17 +110,35 @@ We encountered persistent issues with the HyperPixel 2.1 Round display not worki
   - Boot configuration
   - Permission issues
 
+#### Complete HyperPixel Installation Sequence:
+
+**The correct order is CRITICAL for success:**
+1. Set GL driver to Legacy (or disable KMS overlays)
+2. Enable SPI and I2C interfaces
+3. Run official HyperPixel installer from Pimoroni GitHub
+4. Create X11 config forcing fb0 output
+5. Install matchbox window manager
+6. **REBOOT - Required for framebuffer creation**
+7. Only then can X server find screens and display work
+
 #### Key Lessons for Future Display Issues:
 
 **ALWAYS CHECK THESE FIRST:**
 1. Run diagnostic: `./debug/display-diagnostic.sh`
-2. Verify framebuffer: `ls -la /dev/fb*` (should show fb0 480x480)
-3. Check X server: `ps aux | grep Xorg`
-4. Service status: `systemctl status pi-analytics-display`
-5. Backlight GPIO: `raspi-gpio get 19` (should be OUTPUT, level=1)
+2. **CHECK GL DRIVER**: `raspi-config nonint get_gldriver` (MUST be 1 for Legacy!)
+3. Verify framebuffer exists: `ls -la /dev/fb*` (should show fb0 480x480)
+   - If no fb0 after installation = REBOOT REQUIRED
+4. Check X server: `ps aux | grep Xorg`
+5. Service status: `systemctl status pi-analytics-display`
+6. HyperPixel init: `systemctl status hyperpixel2r-init`
+7. Backlight GPIO: `raspi-gpio get 19` (should be OUTPUT, level=1)
 
 **COMMON FIXES TO TRY:**
 ```bash
+# MOST IMPORTANT: Set GL driver to Legacy
+sudo raspi-config nonint do_gldriver G1
+sudo reboot
+
 # Turn on backlight
 sudo raspi-gpio set 19 op dh
 
@@ -106,12 +152,15 @@ sudo xinit /usr/bin/surf -F http://localhost -- :0 -nocursor vt2
 ```
 
 **ANSIBLE PLAYBOOK REQUIREMENTS:**
-1. Must run official HyperPixel installer (not just copy files)
-2. Must create X11 config to force fb0
-3. Must create and enable pi-analytics-display service
-4. Must NOT use rc.local for X server startup
-5. Service must target multi-user.target
-6. Service must run as root for X permissions
+1. **CRITICAL: Must set GL driver to Legacy** (`raspi-config nonint do_gldriver G1`)
+2. Must run official HyperPixel installer (not just copy files)
+3. Must create X11 config to force fb0
+4. Must create and enable pi-analytics-display service with matchbox window manager
+5. Must NOT use rc.local for X server startup
+6. Service must target multi-user.target
+7. Service must run as root for X permissions
+8. Must disable conflicting VC4 KMS overlays
+9. **MUST REBOOT after installation** for framebuffer devices to be created
 
 ## Quality Gate Requirements
 
