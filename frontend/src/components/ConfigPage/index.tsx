@@ -154,7 +154,7 @@ const ConfigPage: React.FC = () => {
       });
       
       if (response.ok) {
-        setMessage({ type: 'success', text: 'Configuration saved successfully!' });
+        setMessage({ type: 'success', text: 'Configuration saved successfully! Display is reloading...' });
         
         // Broadcast config update
         const channel = new BroadcastChannel('config-updates');
@@ -165,6 +165,11 @@ const ConfigPage: React.FC = () => {
         if (config.display?.theme) {
           applyTheme(config.display.theme);
         }
+        
+        // Update message after a short delay to indicate reload complete
+        setTimeout(() => {
+          setMessage({ type: 'success', text: 'Configuration saved and display reloaded!' });
+        }, 2000);
       } else {
         throw new Error('Failed to save configuration');
       }

@@ -849,7 +849,35 @@ def update_config():
     if not config_manager.update_config(data):
         return jsonify({"success": False, "error": "Failed to update config"}), 500
 
+    # Reload the display to show new configuration
+    try:
+        import subprocess
+        # Send SIGHUP to surf to reload the page
+        subprocess.run(["pkill", "-HUP", "surf"], capture_output=True, text=True)
+        logger.info("Display reloaded after config update")
+    except Exception as e:
+        logger.warning(f"Could not reload display: {e}")
+        # Non-critical error, config was still saved
+
     return jsonify({"success": True})
+
+
+@app.route("/api/admin/display/reload", methods=["POST"])
+def reload_display():
+    """Manually trigger display reload"""
+    try:
+        import subprocess
+        # Send SIGHUP to surf to reload the page
+        result = subprocess.run(["pkill", "-HUP", "surf"], capture_output=True, text=True)
+        if result.returncode == 0:
+            logger.info("Display reload triggered successfully")
+            return jsonify({"success": True, "message": "Display reloaded"})
+        else:
+            logger.warning(f"Display reload returned code {result.returncode}")
+            return jsonify({"success": False, "error": "No display process found"}), 404
+    except Exception as e:
+        logger.error(f"Error reloading display: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 @app.route("/api/admin/config/validate/posthog", methods=["POST"])

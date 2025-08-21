@@ -96,6 +96,16 @@
         state: present
       tags: ['system', 'dependencies']
     
+    - name: Determine browser based on Pi model
+      set_fact:
+        browser_choice: >-
+          {%- if pi_model | default('pi_zero_w') in ['pi_zero_2w', 'pi3', 'pi4', 'pi5'] -%}
+            chromium-browser
+          {%- else -%}
+            surf
+          {%- endif -%}
+      tags: ['system', 'browser']
+
     - name: Install lightweight browser for Pi Zero W
       # Surf is a minimal webkit browser perfect for Pi Zero W's limited resources
       # Midori is installed as a backup option
@@ -104,6 +114,17 @@
           - surf      # Primary browser - very lightweight, webkit-based
           - midori    # Backup browser option
         state: present
+      when: browser_choice == 'surf'
+      tags: ['system', 'browser']
+
+    - name: Install Chromium for Pi Zero 2W/3/4/5
+      # Chromium provides full DevTools and better performance on newer Pis
+      apt:
+        name:
+          - chromium-browser  # Full-featured browser with DevTools
+          - chromium-browser-l10n
+        state: present
+      when: browser_choice == 'chromium-browser'
       tags: ['system', 'browser']
     
     # ============================================
@@ -663,18 +684,17 @@
         msg: "Current Node.js version: {{ current_node_version.stdout | default('Not installed') }}"
       tags: ['app', 'nodejs']
     
-    - name: Install Node.js 16.x (compatible with Pi Zero W)
+    - name: Install Node.js 16.x (compatible with all Pi models)
       # Pi Zero W uses ARMv6 which is not supported by NodeSource
       # We use unofficial builds for ARMv6 or NodeSource for ARMv7+
       block:
-        - name: Detect Pi architecture
-          command: uname -m
-          register: pi_arch
-          changed_when: false
+        - name: Set architecture based on pi_model
+          set_fact:
+            is_armv6: "{{ pi_model | default('pi_zero_w') == 'pi_zero_w' }}"
           tags: ['app', 'nodejs']
         
         - name: Install Node.js for ARMv6 (Pi Zero W)
-          when: pi_arch.stdout == 'armv6l'
+          when: is_armv6
           block:
             - name: Remove old Node.js if present
               apt:
@@ -723,8 +743,8 @@
               ignore_errors: yes
               tags: ['app', 'nodejs']
         
-        - name: Install Node.js for ARMv7+ (Pi 2/3/4)
-          when: pi_arch.stdout != 'armv6l'
+        - name: Install Node.js for ARMv7+ (Pi Zero 2W, Pi 3/4/5)
+          when: not is_armv6
           shell: |
             curl -fsSL https://deb.nodesource.com/setup_16.x | bash -
             apt-get install -y nodejs
@@ -1073,8 +1093,19 @@
           matchbox-window-manager -use_titlebar no -use_cursor no &
           sleep 2
           
-          # Start surf browser in fullscreen
+          # Start browser in fullscreen (surf for Pi Zero W, Chromium for others)
+          {% if browser_choice == 'chromium-browser' %}
+          exec chromium-browser \
+            --kiosk \
+            --noerrdialogs \
+            --disable-infobars \
+            --check-for-update-interval=2592000 \
+            --window-size=480,480 \
+            --window-position=0,0 \
+            http://localhost:{{ backend_port | default(80) }}
+          {% else %}
           exec surf -F http://localhost:{{ backend_port | default(80) }}
+          {% endif %}
         dest: "{{ app_dir }}/scripts/start-display.sh"
         mode: '0755'
         owner: "{{ ansible_user }}"
