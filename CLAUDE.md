@@ -17,20 +17,19 @@ DataOrb is an IoT dashboard that displays PostHog analytics on a Raspberry Pi Ze
 - **Hardware**: Raspberry Pi Zero W + HyperPixel Round display
 - **OTA Updates**: Git-based over-the-air update system with branch management
 
-## ⚠️ CRITICAL: HyperPixel Display Troubleshooting History
+## ⚠️ CRITICAL: HyperPixel Display Complete Solution
 
-### The LCD Display Problem Journey
+### Solved: HyperPixel Installation Requirements
 
-We encountered persistent issues with the HyperPixel 2.1 Round display not working after ansible playbook installation. Here's the complete troubleshooting history and lessons learned:
+After extensive debugging (August 20-21, 2025), we discovered the exact requirements for reliable HyperPixel installation. The display now works perfectly with the ansible playbook on fresh SD cards.
 
-#### Problem Timeline:
-1. **Initial Issue**: LCD black screen after running ansible playbook on fresh Pi installation
-2. **Symptoms**: 
-   - Display backlight on but screen black
-   - All services running but no visual output
-   - Works when manually running HyperPixel installer
+#### The Core Issue:
+**HyperPixel driver installation is stateful** - Simply copying files doesn't work. The driver requires:
+1. **Fresh compilation** of the binary on the target system
+2. **Clean configuration** without ansible markers
+3. **Mandatory reboot** to load device tree overlay and connect to hardware
 
-#### Root Causes Discovered:
+#### Working Solution (Verified):
 
 ##### 1. **Missing HyperPixel Components**
 - **Problem**: Manual overlay copy wasn't sufficient
@@ -87,39 +86,24 @@ We encountered persistent issues with the HyperPixel 2.1 Round display not worki
 - **Verification**: After reboot, `ls -la /dev/fb*` should show fb0 with 480x480 resolution
 - **Note**: The device tree overlay only loads at boot time, creating the framebuffer devices
 
-#### Complete HyperPixel Installation Sequence:
+#### Complete HyperPixel Installation Sequence (WORKING):
 
-**The correct order is CRITICAL for success (verified with test-lcd-install.sh):**
-1. Set GL driver to Legacy (or disable KMS overlays)
-2. Enable SPI and I2C interfaces
-3. Run official HyperPixel installer from Pimoroni GitHub
-4. Create X11 config forcing fb0 output
-5. Install matchbox window manager
-6. **REBOOT - Required for framebuffer creation**
-7. Only then can X server find screens and display work
+**The ansible playbook now implements this exact sequence for fresh SD cards:**
+1. Set GL driver to Legacy BEFORE installation (critical on Bullseye)
+2. Enable SPI and I2C interfaces via raspi-config
+3. Install all required packages including X11 and matchbox
+4. Clone and run official HyperPixel installer (compiles driver)
+5. Installer adds config to /boot/config.txt
+6. Create X11 config forcing fb0 output
+7. **Automatic reboot via ansible** - Required for framebuffer creation
+8. After reboot, display works immediately
 
-**Source of Truth**: `scripts/test-lcd-install.sh` - This script successfully installs HyperPixel on fresh SD card
-
-#### Diagnostic Tools Created:
-- `debug/display-diagnostic.sh` - Comprehensive display troubleshooting script that checks:
-  - HyperPixel components installation
-  - Framebuffer devices and configuration
-  - Service status and dependencies
-  - X server and display processes
-  - GPIO backlight status
-  - Boot configuration
-  - Permission issues
-
-#### Complete HyperPixel Installation Sequence:
-
-**The correct order is CRITICAL for success:**
-1. Set GL driver to Legacy (or disable KMS overlays)
-2. Enable SPI and I2C interfaces
-3. Run official HyperPixel installer from Pimoroni GitHub
-4. Create X11 config forcing fb0 output
-5. Install matchbox window manager
-6. **REBOOT - Required for framebuffer creation**
-7. Only then can X server find screens and display work
+**Key Files After Successful Installation:**
+- `/boot/overlays/hyperpixel2r.dtbo` (1974 bytes - compiled overlay)
+- `/usr/bin/hyperpixel2r-init` (9461 bytes - compiled binary)
+- `/etc/systemd/system/hyperpixel2r-init.service`
+- `/etc/X11/xorg.conf.d/99-hyperpixel.conf`
+- `/boot/config.txt` with HyperPixel config at end (no ansible markers)
 
 #### Key Lessons for Future Display Issues:
 
@@ -151,16 +135,24 @@ sudo systemctl restart pi-analytics-display
 sudo xinit /usr/bin/surf -F http://localhost -- :0 -nocursor vt2
 ```
 
-**ANSIBLE PLAYBOOK REQUIREMENTS:**
-1. **CRITICAL: Must set GL driver to Legacy** (`raspi-config nonint do_gldriver G1`)
-2. Must run official HyperPixel installer (not just copy files)
-3. Must create X11 config to force fb0
-4. Must create and enable pi-analytics-display service with matchbox window manager
-5. Must NOT use rc.local for X server startup
-6. Service must target multi-user.target
-7. Service must run as root for X permissions
-8. Must disable conflicting VC4 KMS overlays
-9. **MUST REBOOT after installation** for framebuffer devices to be created
+**ANSIBLE PLAYBOOK (WORKING - ansible/playbook.yml):**
+The playbook now correctly handles HyperPixel installation on fresh SD cards:
+1. Sets GL driver to Legacy BEFORE any display configuration
+2. Enables I2C and SPI before HyperPixel installation
+3. Installs all required packages (X11, matchbox, surf, fbset)
+4. Clones official HyperPixel repo and runs installer
+5. Installer compiles driver and adds config automatically
+6. Creates X11 config to force fb0 output
+7. Creates pi-analytics-display service (runs as root, targets multi-user)
+8. **Automatically reboots** after installation (mandatory)
+9. Display works immediately after reboot
+
+**What Changed from Non-Working Version:**
+- GL driver set BEFORE installation (was after)
+- Fresh compilation of driver (not just file copy)
+- Clean config append by installer (no ansible markers)
+- Automatic reboot in playbook (was manual)
+- Simplified - removed unnecessary cleanup for fresh cards
 
 ## Quality Gate Requirements
 

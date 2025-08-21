@@ -1,0 +1,185 @@
+---
+# LCD Installation Playbook - EXACT mirror of test-lcd-install.sh
+# This playbook follows the PROVEN working script step-by-step
+
+- name: Install HyperPixel LCD (Following test-lcd-install.sh exactly)
+  hosts: pi
+  become: yes
+  gather_facts: yes
+  
+  vars:
+    config_file: "{{ '/boot/config.txt' if ansible_lsb.codename in ['bullseye', 'buster'] else '/boot/firmware/config.txt' }}"
+    overlay_dir: "{{ '/boot/overlays' if ansible_lsb.codename in ['bullseye', 'buster'] else '/boot/firmware/overlays' }}"
+    
+  tasks:
+    # ===== STEP 1: Prerequisites (from working script) =====
+    - name: STEP 1 - Install Prerequisites (EXACT packages from working script)
+      apt:
+        update_cache: yes
+        name:
+          - git
+          - python3-pip
+          - python3-smbus
+          - python3-spidev
+          - python3-numpy
+          - python3-pil
+          - python3-rpi.gpio
+          - i2c-tools
+          - raspi-config
+          - device-tree-compiler
+          - build-essential
+          - xserver-xorg
+          - xinit
+          - x11-xserver-utils
+          - matchbox-window-manager
+          - surf
+          - fbset
+        state: present
+
+    # ===== STEP 2: Critical Settings (from working script) =====
+    - name: STEP 2A - Check if GL driver commands available
+      command: raspi-config nonint get_gldriver
+      register: gl_check
+      ignore_errors: yes
+      changed_when: false
+
+    - name: STEP 2B - Set GL driver to Legacy (if available)
+      command: raspi-config nonint do_gldriver G1
+      when: gl_check.rc == 0
+      register: gl_result
+      ignore_errors: yes
+
+    - name: STEP 2C - Enable I2C
+      command: raspi-config nonint do_i2c 0
+      ignore_errors: yes
+
+    - name: STEP 2D - Enable SPI  
+      command: raspi-config nonint do_spi 0
+      ignore_errors: yes
+
+    # ===== STEP 3: Clean Conflicts (from working script) =====
+    - name: STEP 3A - Backup config
+      copy:
+        src: "{{ config_file }}"
+        dest: "{{ config_file }}.backup.{{ ansible_date_time.epoch }}"
+        remote_src: yes
+
+    - name: STEP 3B - Disable conflicting overlays
+      replace:
+        path: "{{ config_file }}"
+        regexp: "{{ item.regexp }}"
+        replace: "{{ item.replace }}"
+      loop:
+        - { regexp: '^(dtoverlay=vc4-kms)', replace: '#\1 # Disabled for HyperPixel' }
+        - { regexp: '^(dtoverlay=vc4-fkms)', replace: '#\1 # Disabled for HyperPixel' }
+        - { regexp: '^(dtoverlay=vc4-kms-dpi-hyperpixel2r)', replace: '#\1 # Not compatible' }
+        - { regexp: '^(display_auto_detect=1)', replace: '#\1 # Disabled for HyperPixel' }
+
+    - name: STEP 3C - Remove existing hyperpixel config
+      lineinfile:
+        path: "{{ config_file }}"
+        regexp: ".*hyperpixel.*"
+        state: absent
+
+    # ===== STEP 4: Install HyperPixel (from working script) =====
+    - name: STEP 4A - Remove old hyperpixel2r directory
+      file:
+        path: /tmp/hyperpixel2r
+        state: absent
+
+    - name: STEP 4B - Clone official HyperPixel repository
+      git:
+        repo: https://github.com/pimoroni/hyperpixel2r.git
+        dest: /tmp/hyperpixel2r
+        force: yes
+
+    - name: STEP 4C - Run official installer
+      shell: |
+        cd /tmp/hyperpixel2r
+        bash install.sh
+      args:
+        executable: /bin/bash
+
+    - name: STEP 4D - Verify overlay installed
+      stat:
+        path: "{{ overlay_dir }}/hyperpixel2r.dtbo"
+      register: overlay_check
+      failed_when: not overlay_check.stat.exists
+
+    - name: STEP 4E - Verify init binary installed
+      stat:
+        path: /usr/bin/hyperpixel2r-init
+      register: init_check
+      failed_when: not init_check.stat.exists
+
+    - name: STEP 4F - Enable hyperpixel2r-init service
+      systemd:
+        name: hyperpixel2r-init
+        enabled: yes
+
+    # ===== STEP 5: X11 Configuration (from working script) =====
+    - name: STEP 5A - Create X11 config directory
+      file:
+        path: /etc/X11/xorg.conf.d
+        state: directory
+        mode: '0755'
+
+    - name: STEP 5B - Force X to use fb0 (EXACT config from working script)
+      copy:
+        content: |
+          Section "Device"
+              Identifier "HyperPixel"
+              Driver "fbdev"
+              Option "fbdev" "/dev/fb0"
+          EndSection
+
+          Section "Screen"
+              Identifier "HyperPixelScreen"
+              Device "HyperPixel"
+              DefaultDepth 24
+          EndSection
+
+          Section "ServerLayout"
+              Identifier "HyperPixelLayout"
+              Screen "HyperPixelScreen"
+          EndSection
+        dest: /etc/X11/xorg.conf.d/99-hyperpixel.conf
+        mode: '0644'
+
+    # ===== STEP 6: Test Script (from working script) =====
+    - name: STEP 6 - Create test script
+      copy:
+        content: |
+          #!/bin/bash
+          # Kill any existing X sessions
+          pkill -x Xorg 2>/dev/null
+          pkill -x xinit 2>/dev/null
+          sleep 2
+
+          # Turn on backlight
+          raspi-gpio set 19 op dh 2>/dev/null || true
+
+          # Start X with a simple test
+          echo "Starting X server with test pattern..."
+          xinit /bin/bash -c "matchbox-window-manager & xsetroot -solid red; sleep 5; xsetroot -solid green; sleep 5; xsetroot -solid blue; sleep 5" -- :0 -nocursor
+        dest: /usr/local/bin/test-hyperpixel.sh
+        mode: '0755'
+
+    # ===== Final Status =====
+    - name: Final - Display status
+      debug:
+        msg:
+          - "======================================="
+          - "LCD INSTALLATION COMPLETE"
+          - "======================================="
+          - ""
+          - "🚨 REBOOT REQUIRED!"
+          - ""
+          - "The HyperPixel driver needs a reboot to create framebuffer devices."
+          - "Without reboot, X server will show: 'no screens found'"
+          - ""
+          - "1. Reboot now: sudo reboot"
+          - "2. After reboot, test: sudo /usr/local/bin/test-hyperpixel.sh"
+          - ""
+          - "This should show red, green, blue screens for 5 seconds each"
+          - "======================================="

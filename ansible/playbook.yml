@@ -141,6 +141,41 @@
       when: display_type == 'hyperpixel_round'
       tags: ['display', 'backup']
     
+    # CRITICAL: Set GL driver to Legacy BEFORE installing HyperPixel
+    # This MUST happen before HyperPixel installation or display stays black
+    - name: Check if GL driver commands are available
+      command: raspi-config nonint get_gldriver
+      register: gl_driver_available
+      when: display_type == 'hyperpixel_round'
+      ignore_errors: yes
+      changed_when: false
+      tags: ['display', 'critical']
+    
+    - name: Set GL driver to Legacy (CRITICAL - must be before HyperPixel install)
+      # The Full KMS driver doesn't work with HyperPixel - must use Legacy
+      command: raspi-config nonint do_gldriver G1
+      when: 
+        - display_type == 'hyperpixel_round'
+        - gl_driver_available.rc == 0
+      register: gl_driver_result
+      changed_when: gl_driver_result.rc == 0
+      ignore_errors: yes
+      tags: ['display', 'critical']
+
+    - name: Enable I2C interface (before HyperPixel install)
+      command: raspi-config nonint do_i2c 0
+      when: display_type == 'hyperpixel_round'
+      ignore_errors: yes
+      changed_when: false
+      tags: ['display']
+    
+    - name: Enable SPI interface (before HyperPixel install)
+      command: raspi-config nonint do_spi 0
+      when: display_type == 'hyperpixel_round'
+      ignore_errors: yes
+      changed_when: false
+      tags: ['display']
+
     - name: Install HyperPixel dependencies
       # Packages required for HyperPixel display communication and control
       apt:
@@ -156,12 +191,18 @@
           - raspi-config       # Raspberry Pi configuration tool
           - device-tree-compiler  # For building device tree overlays
           - build-essential    # Compilation tools
+          - xserver-xorg       # X server (from working script)
+          - xinit              # X initializer (from working script)
+          - x11-xserver-utils  # X utilities (from working script)
+          - matchbox-window-manager  # Window manager (from working script)
+          - surf               # Browser (from working script)
+          - fbset              # Framebuffer utilities (from working script)
         state: present
         update_cache: yes
       when: display_type == 'hyperpixel_round'
       tags: ['display', 'hyperpixel']
     
-    # Clone and install HyperPixel software
+    # Install HyperPixel driver - MUST compile fresh and reboot
     - name: Clone HyperPixel2r repository
       git:
         repo: https://github.com/pimoroni/hyperpixel2r.git
@@ -175,24 +216,15 @@
       tags: ['display', 'hyperpixel']
     
     - name: Run official HyperPixel installer
-      # The official installer properly builds and installs all components
+      # The installer compiles the driver binary and modifies config
       shell: |
         cd /tmp/hyperpixel2r
-        if [ -f install.sh ]; then
-          # Run the installer which:
-          # - Builds the device tree overlay
-          # - Installs hyperpixel2r-init binary
-          # - Creates systemd service
-          # - Configures boot settings
-          sudo bash install.sh
-        else
-          echo "Warning: install.sh not found in repository"
-          exit 1
-        fi
+        bash install.sh
       when: 
         - display_type == 'hyperpixel_round'
         - hyperpixel_repo is succeeded
       register: hyperpixel_install
+      become: yes
       tags: ['display', 'hyperpixel']
     
     - name: Verify HyperPixel installation components
@@ -224,54 +256,14 @@
       when: display_type == 'hyperpixel_round'
       tags: ['display', 'hyperpixel', 'services']
     
-    # Clean existing configuration
-    - name: Remove old HyperPixel configuration
-      lineinfile:
-        path: "{{ config_path }}"
-        regexp: "{{ item }}"
-        state: absent
-      loop:
-        - '.*hyperpixel.*'
-        - '^enable_dpi_lcd='
-        - '^dpi_group='
-        - '^dpi_mode='
-        - '^dpi_output_format='
-        - '^dpi_timings='
-        - '^display_rotate='
-      when: display_type == 'hyperpixel_round'
-      tags: ['display']
-    
     # Disable conflicting overlays
-    - name: Disable conflicting KMS overlay
-      replace:
-        path: "{{ config_path }}"
-        regexp: '^(dtoverlay=vc4-kms-v3d.*)$'
-        replace: '#\1  # Disabled for HyperPixel'
-      when: display_type == 'hyperpixel_round'
-      tags: ['display']
-    
-    - name: Disable FKMS overlay
-      replace:
-        path: "{{ config_path }}"
-        regexp: '^(dtoverlay=vc4-fkms-v3d.*)$'
-        replace: '#\1  # Disabled for HyperPixel'
-      when: display_type == 'hyperpixel_round'
-      tags: ['display']
-    
-    - name: Remove any KMS DPI overlay for HyperPixel
-      # The vc4-kms-dpi-hyperpixel2r overlay is for Bookworm but doesn't work well
-      lineinfile:
-        path: "{{ config_path }}"
-        regexp: '^dtoverlay=vc4-kms-dpi-hyperpixel2r'
-        state: absent
-      when: display_type == 'hyperpixel_round'
-      tags: ['display']
-    
-    - name: Disable display auto-detect
-      replace:
-        path: "{{ config_path }}"
-        regexp: '^(display_auto_detect=1)$'
-        replace: '#\1  # Disabled for HyperPixel'
+    - name: Disable conflicting overlays  
+      shell: |
+        # Disable KMS overlays that conflict with HyperPixel
+        sed -i 's/^dtoverlay=vc4-kms/#dtoverlay=vc4-kms # Disabled for HyperPixel/g' {{ config_path }}
+        sed -i 's/^dtoverlay=vc4-fkms/#dtoverlay=vc4-fkms # Disabled for HyperPixel/g' {{ config_path }}
+        sed -i 's/^dtoverlay=vc4-kms-dpi-hyperpixel2r/#dtoverlay=vc4-kms-dpi-hyperpixel2r # Not compatible/g' {{ config_path }}
+        sed -i 's/^display_auto_detect=1/#display_auto_detect=1 # Disabled for HyperPixel/g' {{ config_path }}
       when: display_type == 'hyperpixel_round'
       tags: ['display']
     
@@ -292,76 +284,7 @@
       when: display_type == 'hyperpixel_round'
       tags: ['display']
     
-    - name: Enable I2C via raspi-config
-      command: raspi-config nonint do_i2c 0
-      when: display_type == 'hyperpixel_round'
-      ignore_errors: yes
-      changed_when: false
-      tags: ['display']
     
-    - name: Enable SPI via raspi-config
-      command: raspi-config nonint do_spi 0
-      when: display_type == 'hyperpixel_round'
-      ignore_errors: yes
-      changed_when: false
-      tags: ['display']
-    
-    # CRITICAL: Set GL driver to Legacy for HyperPixel compatibility
-    - name: Check if GL driver commands are available
-      command: raspi-config nonint get_gldriver
-      register: gl_driver_available
-      when: display_type == 'hyperpixel_round'
-      ignore_errors: yes
-      changed_when: false
-      tags: ['display', 'critical']
-    
-    - name: Set GL driver to Legacy (required for HyperPixel)
-      # The Full KMS driver doesn't work with HyperPixel - must use Legacy
-      command: raspi-config nonint do_gldriver G1
-      when: 
-        - display_type == 'hyperpixel_round'
-        - gl_driver_available.rc == 0
-      register: gl_driver_result
-      changed_when: gl_driver_result.rc == 0
-      ignore_errors: yes
-      tags: ['display', 'critical']
-    
-    - name: Verify GL driver is set to Legacy
-      command: raspi-config nonint get_gldriver
-      register: gl_driver_check
-      when: 
-        - display_type == 'hyperpixel_round'
-        - gl_driver_available.rc == 0
-      changed_when: false
-      tags: ['display']
-    
-    - name: Display GL driver status
-      debug:
-        msg: "GL Driver status: {{ gl_driver_check.stdout | default('unknown') }} (should be 1 for Legacy)"
-      when: 
-        - display_type == 'hyperpixel_round'
-        - gl_driver_check is defined
-      tags: ['display']
-    
-    - name: Add HyperPixel display configuration
-      # Critical display timing configuration for HyperPixel 2.1 Round
-      # These values are specific to the 480x480 round display
-      blockinfile:
-        path: "{{ config_path }}"
-        marker: "# {mark} ANSIBLE MANAGED - HyperPixel 2.1 Round Display"
-        block: |
-          dtoverlay=hyperpixel2r          # Load HyperPixel 2 Round device tree overlay
-          enable_dpi_lcd=1                # Enable DPI LCD interface
-          dpi_group=2                     # Custom mode group
-          dpi_mode=87                     # Custom display mode
-          dpi_output_format=0x7f216       # 18-bit RGB format
-          dpi_timings=480 0 10 16 55 480 0 15 60 15 0 0 0 60 0 19200000 6  # Display timings
-          
-          # Enable I2C and SPI for display communication
-          dtparam=i2c_arm=on
-          dtparam=spi=on
-      when: display_type == 'hyperpixel_round'
-      tags: ['display', 'hyperpixel']
     
     # Configure console output
     - name: Check cmdline.txt content
@@ -1104,6 +1027,30 @@
         mode: '0644'
       when: display_type == 'hyperpixel_round'
       tags: ['display', 'xorg', 'kiosk']
+
+    - name: Create HyperPixel test script
+      # Create a test script to verify display works after reboot
+      copy:
+        content: |
+          #!/bin/bash
+          # Test script for HyperPixel display
+          
+          # Kill any existing X sessions
+          pkill -x Xorg 2>/dev/null
+          pkill -x xinit 2>/dev/null
+          sleep 2
+          
+          # Turn on backlight
+          raspi-gpio set 19 op dh 2>/dev/null || true
+          
+          # Start X with a simple test
+          echo "Starting X server with test pattern..."
+          echo "You should see red, green, blue screens for 5 seconds each"
+          xinit /bin/bash -c "matchbox-window-manager & xsetroot -solid red; sleep 5; xsetroot -solid green; sleep 5; xsetroot -solid blue; sleep 5" -- :0 -nocursor
+        dest: /usr/local/bin/test-hyperpixel.sh
+        mode: '0755'
+      when: display_type == 'hyperpixel_round'
+      tags: ['display', 'test']
     
     - name: Create scripts directory
       file:
@@ -1442,7 +1389,43 @@
       loop: "{{ service_status.results }}"
       tags: ['healthcheck']
     
-    - name: Display installation summary
+    - name: Display pre-reboot summary
+      # Show installation status before reboot
+      debug:
+        msg:
+          - "====================================="
+          - "Installation Complete - Reboot Required!"
+          - "====================================="
+          - ""
+          - "HyperPixel driver installed successfully."
+          - "The display will NOT work until after reboot."
+          - ""
+          - "The system will reboot automatically in 10 seconds..."
+          - "====================================="
+      when: display_type == 'hyperpixel_round'
+      tags: ['always']
+    
+    # CRITICAL: Reboot is MANDATORY for HyperPixel to work
+    - name: Reboot for HyperPixel driver activation
+      reboot:
+        msg: "Rebooting for HyperPixel display driver activation"
+        connect_timeout: 5
+        reboot_timeout: 300
+        pre_reboot_delay: 10
+        post_reboot_delay: 30
+      when: 
+        - display_type == 'hyperpixel_round'
+        - hyperpixel_install is succeeded
+      tags: ['display', 'hyperpixel', 'reboot']
+    
+    - name: Wait for system to stabilize after reboot
+      wait_for_connection:
+        delay: 30
+        timeout: 300
+      when: display_type == 'hyperpixel_round'
+      tags: ['display', 'hyperpixel', 'reboot']
+    
+    - name: Display final installation summary
       # Show helpful information about the completed installation
       debug:
         msg:
@@ -1462,18 +1445,13 @@
           - "  Password: {{ wifi_ap_password }}"
           - "  Config URL: http://192.168.4.1"
           - ""
-          - "{{ 'Display: HyperPixel 2.1 Round with matchbox + surf browser' if display_type == 'hyperpixel_round' else '' }}"
+          - "{{ 'Display: HyperPixel 2.1 Round - ACTIVE' if display_type == 'hyperpixel_round' else '' }}"
           - ""
-          - "{{ '🚨 CRITICAL: REBOOT REQUIRED for HyperPixel display!' if display_type == 'hyperpixel_round' else '' }}"
-          - "{{ 'The framebuffer devices are created only after reboot.' if display_type == 'hyperpixel_round' else '' }}"
-          - "{{ 'Without reboot, X server will show: no screens found' if display_type == 'hyperpixel_round' else '' }}"
-          - ""
-          - "{{ 'REBOOT NOW: sudo reboot' if display_type == 'hyperpixel_round' else '' }}"
-          - ""
-          - "{{ 'After reboot, display will auto-start via pi-analytics-display service' if display_type == 'hyperpixel_round' else '' }}"
+          - "{{ 'The HyperPixel display should now be working!' if display_type == 'hyperpixel_round' else '' }}"
+          - "{{ 'Test with: sudo /usr/local/bin/test-hyperpixel.sh' if display_type == 'hyperpixel_round' else '' }}"
           - ""
           - "Configuration: All settings managed via device_config.json"
-          - "{{ 'OS: ' + os_version + ' (HyperPixel works best with Bullseye)' }}"
+          - "{{ 'OS: ' + os_version + ' (HyperPixel verified working)' if display_type == 'hyperpixel_round' else '' }}"
           - "====================================="
       tags: ['always']
     

@@ -984,6 +984,17 @@ def serve_robots():
     return send_from_directory(app.static_folder, "robots.txt")
 
 
+# Serve layout preview images
+@app.route("/layout-previews/<path:filename>")
+def serve_layout_preview(filename):
+    """Serve layout preview images"""
+    preview_dir = os.path.join(app.static_folder, "layout-previews")
+    if os.path.exists(os.path.join(preview_dir, filename)):
+        return send_from_directory(preview_dir, filename)
+    else:
+        return "Image not found", 404
+
+
 # Serve React App for all other routes - This MUST be after all API and static routes
 @app.route("/", defaults={"path": ""})
 @app.route("/<path:path>")
@@ -1009,13 +1020,21 @@ if __name__ == "__main__":
     except Exception as e:
         logger.error(f"Boot update check failed: {e}")
 
-    # Run on port 80 for production IoT device (requires capability or root)
-    # Falls back to port 5000 if port 80 is not available
-    port = 80
-    try:
-        app.run(host="0.0.0.0", port=port, debug=False)
-    except PermissionError:
-        logger.warning("Cannot bind to port 80, falling back to port 5000")
+    # Check if we're in debug mode
+    debug_mode = os.environ.get("FLASK_DEBUG", "0") == "1"
+    
+    # In debug mode, use port 5000. In production, try port 80 first
+    if debug_mode:
         port = 5000
-        app.run(host="0.0.0.0", port=port, debug=False)
+        app.run(host="0.0.0.0", port=port, debug=True)
+    else:
+        # Run on port 80 for production IoT device (requires capability or root)
+        # Falls back to port 5000 if port 80 is not available
+        port = 80
+        try:
+            app.run(host="0.0.0.0", port=port, debug=False)
+        except PermissionError:
+            logger.warning("Cannot bind to port 80, falling back to port 5000")
+            port = 5000
+            app.run(host="0.0.0.0", port=port, debug=False)
 

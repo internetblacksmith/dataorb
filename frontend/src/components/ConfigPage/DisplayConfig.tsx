@@ -116,24 +116,36 @@ export const DisplayConfig: React.FC<DisplayConfigProps> = React.memo(({
       <div className="form-group">
         <label>Dashboard Layout</label>
         <div className="layout-grid">
-          {Object.entries(DASHBOARD_LAYOUTS).map(([key, value]) => (
-            <div
-              key={value}
-              className={`layout-card ${config.display?.layout === value ? 'active' : ''}`}
-              onClick={() => handleLayoutChange(value)}
-            >
-              <div className="layout-preview">
-                <div style={{ color: 'var(--text-color, #ffffff)' }}>
-                  {value.toUpperCase()}
+          {Object.entries(DASHBOARD_LAYOUTS).map(([key, value]) => {
+            // Preview image path uses the layout name directly
+            const previewImage = `/layout-previews/${value}.png`;
+            
+            return (
+              <div
+                key={value}
+                className={`layout-card ${config.display?.layout === value ? 'active' : ''}`}
+                onClick={() => handleLayoutChange(value)}
+              >
+                <div className="layout-preview">
+                  <img 
+                    src={previewImage} 
+                    alt={`${value} layout preview`}
+                    style={{ 
+                      width: '100%', 
+                      height: '100%', 
+                      objectFit: 'cover',
+                      borderRadius: '4px'
+                    }}
+                  />
                 </div>
+                <h5>{key.charAt(0).toUpperCase() + key.slice(1).toLowerCase()}</h5>
+                <p>{getLayoutDescription(value)}</p>
+                {config.display?.layout === value && (
+                  <div className="selected-badge">Selected</div>
+                )}
               </div>
-              <h5>{key.charAt(0).toUpperCase() + key.slice(1).toLowerCase()}</h5>
-              <p>{getLayoutDescription(value)}</p>
-              {config.display?.layout === value && (
-                <div className="selected-badge">Selected</div>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
