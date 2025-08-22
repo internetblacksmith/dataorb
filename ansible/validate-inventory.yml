@@ -1,0 +1,94 @@
+---
+# Inventory Validation Playbook
+# Run this to validate your inventory configuration before deployment:
+# ansible-playbook -i inventory.ini validate-inventory.yml
+
+- name: Validate DataOrb Inventory Configuration
+  hosts: pi
+  gather_facts: no
+  become: no
+  
+  tasks:
+    - name: Test connectivity
+      ping:
+      register: ping_result
+      
+    - name: Display host information
+      debug:
+        msg:
+          - "==================================="
+          - "Host: {{ inventory_hostname }}"
+          - "==================================="
+          - "Ansible User: {{ ansible_user | default('NOT SET') }}"
+          - "Pi Model: {{ pi_model | default('NOT SET') }}"
+          - "Display Type: {{ display_type | default('NOT SET') }}"
+          
+    - name: Validate pi_model
+      assert:
+        that:
+          - pi_model is defined
+          - pi_model in ['pi_zero_w', 'pi_zero_2w', 'pi3', 'pi4', 'pi5']
+        fail_msg: |
+          ❌ ERROR: Invalid pi_model for {{ inventory_hostname }}
+          Current value: {{ pi_model | default('NOT SET') }}
+          Valid values: pi_zero_w, pi_zero_2w, pi3, pi4, pi5
+        success_msg: "✓ Pi model valid: {{ pi_model }}"
+        
+    - name: Validate display_type
+      assert:
+        that:
+          - display_type is defined
+          - display_type in ['hyperpixel_round', 'waveshare_34_hdmi', 'hdmi', 'none']
+        fail_msg: |
+          ❌ ERROR: Invalid display_type for {{ inventory_hostname }}
+          Current value: {{ display_type | default('NOT SET') }}
+          Valid values: hyperpixel_round, waveshare_34_hdmi, hdmi, none
+          
+          Common typos:
+          - waveshara_34_hdmi → waveshare_34_hdmi
+          - hyperpixel → hyperpixel_round
+        success_msg: "✓ Display type valid: {{ display_type }}"
+        
+    - name: Check configuration compatibility
+      assert:
+        that:
+          - not (pi_model == 'pi_zero_w' and display_type == 'waveshare_34_hdmi')
+        fail_msg: |
+          ⚠️  WARNING: Performance issue detected!
+          Pi Zero W + Waveshare 3.4" (800x800) = Poor performance
+          Recommended: Use Pi Zero 2W or newer with Waveshare display
+        success_msg: "✓ Configuration compatible"
+      ignore_errors: yes
+      
+    - name: Test sudo access
+      become: yes
+      command: whoami
+      register: sudo_test
+      failed_when: false
+      changed_when: false
+      
+    - name: Validate sudo permissions
+      assert:
+        that:
+          - sudo_test.rc == 0
+          - sudo_test.stdout == 'root'
+        fail_msg: |
+          ❌ ERROR: Cannot get sudo access for {{ ansible_user }}
+          Please ensure password is correct or configure passwordless sudo
+        success_msg: "✓ Sudo access working"
+      when: sudo_test is defined
+      
+    - name: Summary
+      debug:
+        msg:
+          - "==================================="
+          - "✅ Validation Complete for {{ inventory_hostname }}"
+          - "==================================="
+          - "Configuration:"
+          - "  Pi Model: {{ pi_model }}"
+          - "  Display: {{ display_type }}"
+          - "  Resolution: {{ '800x800' if display_type == 'waveshare_34_hdmi' else '480x480' if display_type == 'hyperpixel_round' else 'N/A' }}"
+          - "  Browser: {{ 'Chromium' if pi_model in ['pi_zero_2w', 'pi3', 'pi4', 'pi5'] else 'Surf' }}"
+          - ""
+          - "Ready for deployment! ✨"
+          - "==================================="

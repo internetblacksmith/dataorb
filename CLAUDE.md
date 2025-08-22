@@ -8,6 +8,15 @@ DataOrb is an IoT dashboard that displays PostHog analytics on a Raspberry Pi Ze
 
 **Note:** This is an independent project, not affiliated with PostHog.
 
+## 🔧 IMPORTANT: Troubleshooting Protocol
+
+**ALWAYS consult the Known Issues & Solutions section below BEFORE attempting any fixes.**
+
+When encountering any error:
+1. First check the "Known Issues & Solutions" section for existing solutions
+2. If fixing a new issue, document it immediately after resolution
+3. Include: Problem description, root cause, solution, and prevention tips
+
 ## Architecture
 
 - **Integrated Server**: Single Flask app serves both API and React frontend
@@ -153,6 +162,151 @@ The playbook now correctly handles HyperPixel installation on fresh SD cards:
 - Clean config append by installer (no ansible markers)
 - Automatic reboot in playbook (was manual)
 - Simplified - removed unnecessary cleanup for fresh cards
+
+## 📋 Known Issues & Solutions
+
+### Issue #1: Ansible APT 404 Errors (Package Not Found)
+**Problem**: Installation fails with "404 Not Found" errors for packages like nginx, python3.11-dev
+```
+E: Failed to fetch http://deb.debian.org/debian/pool/main/n/nginx/nginx_1.22.1-9+deb12u1_arm64.deb  404  Not Found
+```
+
+**Root Cause**: APT package cache is stale and package versions have been updated in repositories
+
+**Solution**:
+- Force apt cache refresh: `cache_valid_time: 0`
+- Use `state: latest` instead of pinned versions
+- Already fixed in playbook.yml
+
+**Prevention**: Always use latest package versions unless specific version is critical
+
+---
+
+### Issue #2: Display Service Fails to Start (Waveshare/HDMI)
+**Problem**: pi-analytics-display.service fails with "fatal signal delivered to control process"
+
+**Root Cause**: Display scripts and configuration only created for hyperpixel_round display type
+
+**Solution**:
+- Update all display-related conditions to include waveshare_34_hdmi
+- Check conditions: `when: display_type in ['hyperpixel_round', 'waveshare_34_hdmi']`
+- Already fixed in playbook.yml
+
+**Prevention**: When adding new display types, search for all display_type conditions
+
+---
+
+### Issue #3: Inventory Configuration Typos
+**Problem**: Playbook fails with undefined variables or wrong display configurations
+
+**Common Typos**:
+- `waveshara_34_hdmi` → `waveshare_34_hdmi` (note the 'e')
+- Missing `pi_model` or `display_type` in inventory
+
+**Solution**:
+- Run validation playbook first: `ansible-playbook -i inventory.ini validate-inventory.yml`
+- Check inventory.ini for typos
+- Validation now built into main playbook
+
+**Prevention**: Always run validation before deployment
+
+---
+
+### Issue #4: Flask Development Mode Permission Denied
+**Problem**: Flask fails to start on port 80 in development mode
+
+**Root Cause**: Port 80 requires root privileges
+
+**Solution**:
+- Check FLASK_DEBUG environment variable
+- Use port 5000 for development, port 80 for production
+- Already fixed in backend/app.py
+
+**Prevention**: Always use high ports (>1024) for development
+
+---
+
+### Issue #5: Layout Preview Images Not Loading
+**Problem**: Config page shows broken images for layout previews
+
+**Root Cause**: Flask catch-all route intercepting image URLs
+
+**Solution**:
+- Add specific route for /layout-previews/ before catch-all
+- Images renamed to use dashboard names (classic.png, modern.png, etc.)
+- Already fixed in backend/app.py
+
+**Prevention**: Test all static assets after adding new routes
+
+---
+
+### Issue #6: HyperPixel Display Black Screen (See detailed section above)
+**Problem**: Display stays black despite successful installation
+
+**Root Cause**: Multiple issues including GL driver, framebuffer, reboot requirement
+
+**Solution**: See complete HyperPixel section above for comprehensive fix
+
+**Prevention**: Follow exact installation sequence in playbook
+
+---
+
+### Issue #7: Config Changes Not Reflected on LCD
+**Problem**: Saving configuration doesn't update the display
+
+**Root Cause**: No mechanism to reload surf browser after config save
+
+**Solution**:
+- Send SIGHUP signal to surf browser: `pkill -HUP surf`
+- Added to /api/admin/config endpoint
+- Already fixed in backend/app.py
+
+**Prevention**: Always consider display refresh when changing visible settings
+
+---
+
+### Issue #8: Playbook Hangs at Swap File Creation
+**Problem**: Ansible playbook hangs indefinitely at "Make swap file" task on Pi 4/5
+
+**Root Cause**: 
+- Creating 1GB swap file with `dd` is very slow on SD cards
+- Pi 4/5 have enough RAM (2-8GB) and don't need swap
+- Task was running for all Pi models
+
+**Solution**:
+- Skip swap creation for Pi 4/5 (only create for Pi Zero W/2W)
+- Reduced swap size to 512MB for faster creation
+- Added `status=progress` to dd command for visibility
+- Already fixed in playbook.yml
+
+**Prevention**: 
+- Always consider hardware differences between Pi models
+- Use `--skip-tags swap` when running on Pi 4/5
+- Check RAM with `free -h` before deciding on swap
+
+---
+
+### Issue #9: Waveshare LCD Black Screen  
+**Problem**: Waveshare 3.4" HDMI display stays black even with power
+
+**Root Cause**: Missing HDMI configuration in /boot/config.txt
+
+**Solution**:
+1. Add HDMI config to /boot/config.txt:
+```
+hdmi_group=2
+hdmi_mode=87
+hdmi_force_hotplug=1
+hdmi_timings=800 0 68 32 200 800 0 68 32 200 0 0 0 60 0 59400000 0
+disable_overscan=1
+```
+2. Reboot the Pi
+3. Test with: `sudo fbi -d /dev/fb0 -T 1 -a /usr/share/pixmaps/raspberry-pi-logo.png`
+
+**Prevention**: 
+- Ensure playbook completes the Waveshare configuration section
+- Check HDMI cable connection
+- Power LCD before Pi for proper initialization
 
 ## Quality Gate Requirements
 

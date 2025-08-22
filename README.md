@@ -16,11 +16,40 @@ IoT dashboard displaying PostHog analytics on a Raspberry Pi with HyperPixel Rou
 
 ## Hardware Requirements
 
-- **Raspberry Pi Zero W** (or Pi 3/4/5 for better performance)
-- **HyperPixel 2.1 Round Touch Display** by Pimoroni
+- **Raspberry Pi** (see supported models below)
+  - Pi Zero W (minimum, limited performance)
+  - Pi Zero 2 W (recommended for HyperPixel)
+  - Pi 3/4/5 (best performance, supports Waveshare displays)
+- **Display Options:**
+  - **HyperPixel 2.1 Round Touch Display** (480x480) by Pimoroni
+  - **Waveshare 3.4inch HDMI Display** (800x800) - Pi 4/5 recommended
 - **MicroSD Card** (8GB minimum, 16GB+ recommended)
 - **Power Supply** (5V 2.5A for Pi Zero W, more for Pi 3/4/5)
 - **Optional: 3D Printed Case** - [Download STL files from Cults3D](https://cults3d.com/en/design-collections/printminion/various-cases-for-hyperpixel-2-1-round-touch-display-by-pimoroni)
+
+## Operating System Selection
+
+### ⚠️ IMPORTANT: Choose the Right OS Image
+
+For DataOrb to work correctly, you MUST use the correct Raspberry Pi OS image:
+
+| Image Type | Use This For | Download |
+|------------|--------------|----------|
+| **Raspberry Pi OS Lite (32-bit)** | ✅ **RECOMMENDED** - All Pi models, especially Pi Zero W/2W | [Download](https://www.raspberrypi.com/software/operating-systems/#raspberry-pi-os-32-bit) |
+| Raspberry Pi OS Lite (64-bit) | Pi 3/4/5 with 2GB+ RAM only | [Download](https://www.raspberrypi.com/software/operating-systems/#raspberry-pi-os-64-bit) |
+| ~~Raspberry Pi OS Desktop~~ | ❌ **DO NOT USE** - Conflicts with kiosk mode | Not compatible |
+
+### Why Lite OS?
+- **No desktop environment** - Prevents conflicts with kiosk display
+- **Lower RAM usage** - Critical for Pi Zero W/2W (512MB RAM)
+- **Faster boot times** - No unnecessary services
+- **Designed for kiosk/IoT** - Exactly what DataOrb needs
+
+### Which Architecture?
+- **32-bit (armhf)**: Best for Pi Zero W, Pi Zero 2W (lower RAM usage)
+- **64-bit (arm64)**: Optional for Pi 3/4/5 with 2GB+ RAM
+
+**Note:** If you accidentally use the Desktop version, the display will show the desktop instead of DataOrb!
 
 ## Quick Start
 

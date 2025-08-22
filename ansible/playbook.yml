@@ -64,10 +64,98 @@
         msg: "Detected OS: {{ os_version }}"
       tags: ['always']
     
-    - name: Update package cache
+    # ============================================
+    # Inventory Configuration Validation
+    # ============================================
+    # Validates that inventory variables are correctly configured
+    # to prevent deployment failures due to typos or invalid values
+    
+    - name: Validate pi_model configuration
+      assert:
+        that:
+          - pi_model is defined
+          - pi_model in ['pi_zero_w', 'pi_zero_2w', 'pi3', 'pi4', 'pi5']
+        fail_msg: |
+          ERROR: Invalid or missing pi_model in inventory!
+          Current value: {{ pi_model | default('NOT SET') }}
+          Valid values: pi_zero_w, pi_zero_2w, pi3, pi4, pi5
+          
+          Please update your inventory.ini file with a valid pi_model.
+          Example: 192.168.1.100 ansible_user=pi ansible_ssh_pass=password pi_model=pi5 display_type=waveshare_34_hdmi
+        success_msg: "✓ Pi model validated: {{ pi_model }}"
+      tags: ['always', 'validation']
+    
+    - name: Validate display_type configuration
+      assert:
+        that:
+          - display_type is defined
+          - display_type in ['hyperpixel_round', 'waveshare_34_hdmi', 'hdmi', 'none']
+        fail_msg: |
+          ERROR: Invalid or missing display_type in inventory!
+          Current value: {{ display_type | default('NOT SET') }}
+          Valid values: hyperpixel_round, waveshare_34_hdmi, hdmi, none
+          
+          Common typos to check:
+          - waveshara_34_hdmi → waveshare_34_hdmi (note the 'e')
+          - hyperpixel → hyperpixel_round
+          
+          Please update your inventory.ini file with a valid display_type.
+        success_msg: "✓ Display type validated: {{ display_type }}"
+      tags: ['always', 'validation']
+    
+    - name: Check for incompatible configurations
+      assert:
+        that:
+          - not (pi_model == 'pi_zero_w' and display_type == 'waveshare_34_hdmi')
+        fail_msg: |
+          WARNING: Pi Zero W with Waveshare 3.4" HDMI display may have performance issues.
+          The 800x800 resolution requires more resources than Pi Zero W can comfortably provide.
+          Consider using Pi Zero 2W or newer for Waveshare display.
+        success_msg: "✓ Configuration compatibility check passed"
+      ignore_errors: yes  # This is a warning, not a hard failure
+      tags: ['always', 'validation']
+    
+    - name: Display validated configuration
+      debug:
+        msg:
+          - "==================================="
+          - "Configuration Validated Successfully"
+          - "==================================="
+          - "Pi Model: {{ pi_model }}"
+          - "Display Type: {{ display_type }}"
+          - "Display Resolution: {{ '800x800' if display_type == 'waveshare_34_hdmi' else '480x480' if display_type == 'hyperpixel_round' else 'Default' }}"
+          - "Browser: {{ 'Chromium' if pi_model in ['pi_zero_2w', 'pi3', 'pi4', 'pi5'] else 'Surf' }}"
+          - "Node.js: {{ 'Official' if pi_model != 'pi_zero_w' else 'Unofficial ARMv6' }}"
+          - "==================================="
+      tags: ['always', 'validation']
+    
+    - name: Validate sudo permissions
+      command: sudo -n true
+      changed_when: false
+      register: sudo_check
+      failed_when: false
+      tags: ['always', 'validation']
+    
+    - name: Check sudo access
+      assert:
+        that:
+          - sudo_check.rc == 0
+        fail_msg: |
+          ERROR: User {{ ansible_user }} does not have passwordless sudo access!
+          
+          To fix this, run on the Pi:
+          sudo visudo
+          
+          And add this line:
+          {{ ansible_user }} ALL=(ALL) NOPASSWD: ALL
+        success_msg: "✓ Sudo permissions validated"
+      when: ansible_become_method | default('sudo') == 'sudo'
+      tags: ['always', 'validation']
+    
+    - name: Update package cache (force refresh)
       apt:
         update_cache: yes
-        cache_valid_time: 3600
+        cache_valid_time: 0  # Force refresh to avoid 404 errors
       tags: ['system', 'packages']
     
     - name: Install system dependencies
@@ -93,7 +181,7 @@
           - unclutter                # Hide mouse cursor
           - matchbox-window-manager  # Lightweight window manager
           - fbi                      # Framebuffer image viewer
-        state: present
+        state: latest  # Use latest available versions to avoid 404 errors
       tags: ['system', 'dependencies']
     
     - name: Determine browser based on Pi model
@@ -105,6 +193,29 @@
             surf
           {%- endif -%}
       tags: ['system', 'browser']
+    
+    - name: Apply Pi 5 specific optimizations
+      when: pi_model | default('') == 'pi5'
+      block:
+        - name: Set CPU governor to performance for Pi 5
+          lineinfile:
+            path: /etc/rc.local
+            line: 'echo performance | tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor'
+            insertbefore: 'exit 0'
+            create: yes
+          tags: ['system', 'performance']
+        
+        - name: Increase GPU memory split for Pi 5
+          lineinfile:
+            path: "{{ config_path | default('/boot/config.txt') }}"
+            regexp: '^gpu_mem='
+            line: 'gpu_mem=256'
+          tags: ['system', 'performance']
+        
+        - name: Enable hardware acceleration for Chromium on Pi 5
+          set_fact:
+            chromium_extra_flags: "--enable-features=VaapiVideoDecoder --use-gl=egl --enable-gpu-rasterization"
+          tags: ['system', 'performance']
 
     - name: Install lightweight browser for Pi Zero W
       # Surf is a minimal webkit browser perfect for Pi Zero W's limited resources
@@ -459,6 +570,56 @@
       tags: ['display', 'hyperpixel', 'services']
     
     # ============================================
+    # Phase 2B: Waveshare 3.4" HDMI Display Configuration
+    # ============================================
+    # Configures the Waveshare 3.4inch HDMI display (800x800).
+    # This display uses standard HDMI with custom timing parameters.
+    
+    - name: Set display resolution based on display type
+      set_fact:
+        display_width: "{{ 800 if display_type == 'waveshare_34_hdmi' else 480 }}"
+        display_height: "{{ 800 if display_type == 'waveshare_34_hdmi' else 480 }}"
+      tags: ['display']
+
+    - name: Configure Waveshare 3.4" HDMI display
+      when: display_type == 'waveshare_34_hdmi'
+      block:
+        - name: Update boot config for Waveshare display
+          blockinfile:
+            path: "{{ config_path }}"
+            marker: "# {mark} ANSIBLE MANAGED - Waveshare 3.4 HDMI Display"
+            block: |
+              # Waveshare 3.4inch 800x800 HDMI display settings
+              hdmi_group=2
+              hdmi_mode=87
+              hdmi_force_hotplug=1
+              hdmi_timings=800 0 68 32 200 800 0 68 32 200 0 0 0 60 0 59400000 0
+              
+              # Disable overscan for full screen usage
+              disable_overscan=1
+              
+              # Enable GPU acceleration for Pi 4/5
+              {% if pi_model in ['pi4', 'pi5'] %}
+              gpu_mem=128
+              dtoverlay=vc4-kms-v3d
+              max_framebuffers=2
+              {% endif %}
+          tags: ['display', 'waveshare']
+        
+        - name: Install X11 and display packages for Waveshare
+          apt:
+            name:
+              - xserver-xorg
+              - xinit
+              - x11-xserver-utils
+              - matchbox-window-manager
+              - unclutter
+              - fbset
+            state: present
+            update_cache: yes
+          tags: ['display', 'waveshare']
+    
+    # ============================================
     # Phase 3: Clean Boot Configuration
     # ============================================
     # Configures a professional, clean boot experience with no text output.
@@ -558,39 +719,59 @@
       tags: ['boot', 'optimize']
     
     # ============================================
-    # Phase 4: Create swap file for Pi Zero W
+    # Phase 4: Create swap file (for low-RAM devices)
     # ============================================
     # Pi Zero W has limited RAM (512MB). A swap file helps prevent
     # out-of-memory errors during npm builds and normal operation.
+    # Pi 4/5 have enough RAM and don't need swap.
+    
+    - name: Determine if swap is needed
+      set_fact:
+        needs_swap: "{{ pi_model in ['pi_zero_w', 'pi_zero_2w'] }}"
+      tags: ['swap']
+    
+    - name: Display swap decision
+      debug:
+        msg: "Swap {{ 'will be created (low RAM device)' if needs_swap else 'skipped (Pi 4/5 have sufficient RAM)' }}"
+      tags: ['swap']
     
     - name: Check if swap file exists
       stat:
         path: /swapfile
       register: swap_file_check
+      when: needs_swap
       tags: ['swap']
     
-    - name: Create swap file (1GB for Pi Zero W)
-      # Creates a 1GB swap file to supplement the 512MB RAM
+    - name: Create swap file (512MB for faster creation)
+      # Creates a 512MB swap file (reduced from 1GB for faster deployment)
       command: |
-        dd if=/dev/zero of=/swapfile bs=1M count=1024
-      when: not swap_file_check.stat.exists
+        dd if=/dev/zero of=/swapfile bs=1M count=512 status=progress
+      when: 
+        - needs_swap
+        - not swap_file_check.stat.exists | default(false)
       tags: ['swap']
     
     - name: Set swap file permissions
       file:
         path: /swapfile
         mode: '0600'
-      when: not swap_file_check.stat.exists
+      when: 
+        - needs_swap
+        - not swap_file_check.stat.exists | default(false)
       tags: ['swap']
     
     - name: Make swap file
       command: mkswap /swapfile
-      when: not swap_file_check.stat.exists
+      when: 
+        - needs_swap
+        - not swap_file_check.stat.exists | default(false)
       tags: ['swap']
     
     - name: Enable swap file
       command: swapon /swapfile
-      when: not swap_file_check.stat.exists
+      when: 
+        - needs_swap
+        - not swap_file_check.stat.exists | default(false)
       tags: ['swap']
     
     - name: Add swap to fstab
@@ -598,6 +779,7 @@
         path: /etc/fstab
         line: '/swapfile none swap sw 0 0'
         create: yes
+      when: needs_swap
       tags: ['swap']
     
     # ============================================
@@ -997,21 +1179,21 @@
         path: /etc/rc.local
         line: '/usr/local/bin/pi-dashboard-autostart.sh &'
         state: absent
-      when: display_type == 'hyperpixel_round'
+      when: display_type in ['hyperpixel_round', 'waveshare_34_hdmi']
       tags: ['services', 'kiosk', 'cleanup']
     
     - name: Make rc.local executable
       file:
         path: /etc/rc.local
         mode: '0755'
-      when: display_type == 'hyperpixel_round'
+      when: display_type in ['hyperpixel_round', 'waveshare_34_hdmi']
       tags: ['services', 'kiosk']
     
     - name: Enable rc-local service
       systemd:
         name: rc-local
         enabled: yes
-      when: display_type == 'hyperpixel_round'
+      when: display_type in ['hyperpixel_round', 'waveshare_34_hdmi']
       ignore_errors: yes
       tags: ['services', 'kiosk']
     
@@ -1020,7 +1202,7 @@
         path: /etc/X11/xorg.conf.d
         state: directory
         mode: '0755'
-      when: display_type == 'hyperpixel_round'
+      when: display_type in ['hyperpixel_round', 'waveshare_34_hdmi']
       tags: ['display', 'xorg']
     
     - name: Create X server configuration for HyperPixel
@@ -1079,7 +1261,7 @@
         owner: "{{ ansible_user }}"
         group: "{{ ansible_user }}"
         mode: '0755'
-      when: display_type == 'hyperpixel_round'
+      when: display_type in ['hyperpixel_round', 'waveshare_34_hdmi']
       tags: ['services', 'kiosk']
     
     - name: Create display start script
@@ -1100,8 +1282,9 @@
             --noerrdialogs \
             --disable-infobars \
             --check-for-update-interval=2592000 \
-            --window-size=480,480 \
+            --window-size={{ display_width }},{{ display_height }} \
             --window-position=0,0 \
+            {% if chromium_extra_flags is defined %}{{ chromium_extra_flags }} \{% endif %}
             http://localhost:{{ backend_port | default(80) }}
           {% else %}
           exec surf -F http://localhost:{{ backend_port | default(80) }}
@@ -1110,7 +1293,7 @@
         mode: '0755'
         owner: "{{ ansible_user }}"
         group: "{{ ansible_user }}"
-      when: display_type == 'hyperpixel_round'
+      when: display_type in ['hyperpixel_round', 'waveshare_34_hdmi']
       tags: ['services', 'kiosk']
     
     - name: Create kiosk start script
@@ -1120,21 +1303,21 @@
         mode: '0755'
         owner: "{{ ansible_user }}"
         group: "{{ ansible_user }}"
-      when: display_type == 'hyperpixel_round'
+      when: display_type in ['hyperpixel_round', 'waveshare_34_hdmi']
       tags: ['services', 'kiosk']
     
     - name: Verify kiosk script was created
       stat:
         path: "{{ app_dir }}/start-kiosk.sh"
       register: kiosk_script_check
-      when: display_type == 'hyperpixel_round'
+      when: display_type in ['hyperpixel_round', 'waveshare_34_hdmi']
       tags: ['services', 'kiosk']
     
     - name: Display kiosk script status
       debug:
         msg: "Kiosk script created successfully at {{ app_dir }}/start-kiosk.sh"
       when: 
-        - display_type == 'hyperpixel_round'
+        - display_type in ['hyperpixel_round', 'waveshare_34_hdmi']
         - kiosk_script_check.stat.exists
       tags: ['services', 'kiosk']
     

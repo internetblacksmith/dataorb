@@ -1,10 +1,24 @@
 # PostHog Pi - Quick Start Guide
 
+## 📱 Operating System Requirements
+
+### **IMPORTANT: Use Raspberry Pi OS Lite!**
+
+Before starting, you MUST flash the correct OS image:
+
+| OS Image | Compatibility | Download |
+|----------|--------------|----------|
+| **Raspberry Pi OS Lite (32-bit)** | ✅ **RECOMMENDED** - All Pi models | [Download](https://www.raspberrypi.com/software/operating-systems/) |
+| Raspberry Pi OS Lite (64-bit) | ✅ Pi 3/4/5 only (more RAM usage) | [Download](https://www.raspberrypi.com/software/operating-systems/) |
+| ~~Raspberry Pi OS Desktop~~ | ❌ **DO NOT USE** - Will show desktop instead of dashboard | Not compatible |
+
+**Why Lite?** DataOrb creates its own minimal display server. The Desktop version interferes with kiosk mode.
+
 ## 🚀 Easy Installation on Fresh Raspberry Pi
 
 ### **One-Command Installation**
 
-After flashing Raspberry Pi OS and first boot:
+After flashing **Raspberry Pi OS Lite** and first boot:
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/jabawack81/pi_analytics_dashboard/main/scripts/install-pi.sh | bash
