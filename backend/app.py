@@ -1,7 +1,8 @@
-from flask import Flask, jsonify, send_from_directory, request
+from flask import Flask, jsonify, send_from_directory, request, render_template_string
 from flask_cors import CORS
 import requests
 import os
+import json
 import logging
 from datetime import datetime, timedelta, timezone
 from config_manager import ConfigManager
@@ -849,12 +850,58 @@ def update_config():
     if not config_manager.update_config(data):
         return jsonify({"success": False, "error": "Failed to update config"}), 500
 
+    # Apply screensaver timeout if it was changed
+    if "display" in data and "screensaver_timeout" in data.get("display", {}):
+        try:
+            import subprocess
+            timeout_minutes = data["display"]["screensaver_timeout"]
+            
+            # Apply the timeout using xset
+            if timeout_minutes == 0:
+                # Disable screensaver
+                commands = [
+                    ["xset", "s", "off"],
+                    ["xset", "-dpms"],
+                    ["xset", "s", "noblank"]
+                ]
+            else:
+                # Enable screensaver with timeout
+                timeout_seconds = timeout_minutes * 60
+                commands = [
+                    ["xset", "s", str(timeout_seconds), str(timeout_seconds)],
+                    ["xset", "+dpms"],
+                    ["xset", "dpms", str(timeout_seconds), str(timeout_seconds), str(timeout_seconds)]
+                ]
+            
+            # Execute commands
+            for cmd in commands:
+                subprocess.run(cmd, capture_output=True, text=True, env={**os.environ, "DISPLAY": ":0"})
+            
+            logger.info(f"Applied screensaver timeout: {timeout_minutes} minutes")
+        except Exception as e:
+            logger.warning(f"Could not apply screensaver settings: {e}")
+    
     # Reload the display to show new configuration
     try:
         import subprocess
-        # Send SIGHUP to surf to reload the page
-        subprocess.run(["pkill", "-HUP", "surf"], capture_output=True, text=True)
-        logger.info("Display reloaded after config update")
+        # Try to reload surf first (Pi Zero W)
+        surf_result = subprocess.run(["pkill", "-HUP", "surf"], capture_output=True, text=True)
+        
+        # If surf isn't running, try chromium-browser (Pi Zero 2W, Pi 4/5)
+        if surf_result.returncode != 0:
+            # For Chromium, we need to use xdotool to refresh the page
+            # First check if xdotool is installed
+            xdotool_check = subprocess.run(["which", "xdotool"], capture_output=True, text=True)
+            if xdotool_check.returncode == 0:
+                # Send F5 key to refresh Chromium
+                subprocess.run(["xdotool", "key", "F5"], env={**os.environ, "DISPLAY": ":0"}, capture_output=True, text=True)
+                logger.info("Display reloaded via xdotool F5")
+            else:
+                # Fallback: restart the entire chromium process
+                subprocess.run(["pkill", "-f", "chromium-browser"], capture_output=True, text=True)
+                logger.info("Chromium will restart via systemd")
+        else:
+            logger.info("Display reloaded via SIGHUP to surf")
     except Exception as e:
         logger.warning(f"Could not reload display: {e}")
         # Non-critical error, config was still saved
@@ -867,16 +914,81 @@ def reload_display():
     """Manually trigger display reload"""
     try:
         import subprocess
-        # Send SIGHUP to surf to reload the page
-        result = subprocess.run(["pkill", "-HUP", "surf"], capture_output=True, text=True)
-        if result.returncode == 0:
-            logger.info("Display reload triggered successfully")
-            return jsonify({"success": True, "message": "Display reloaded"})
-        else:
-            logger.warning(f"Display reload returned code {result.returncode}")
-            return jsonify({"success": False, "error": "No display process found"}), 404
+        
+        # Try to reload surf first (Pi Zero W)
+        surf_result = subprocess.run(["pkill", "-HUP", "surf"], capture_output=True, text=True)
+        
+        if surf_result.returncode == 0:
+            logger.info("Display reload triggered successfully via surf")
+            return jsonify({"success": True, "message": "Display reloaded (surf)"})
+        
+        # If surf isn't running, try chromium-browser (Pi Zero 2W, Pi 4/5)
+        # For Chromium, we need to use xdotool to refresh the page
+        xdotool_check = subprocess.run(["which", "xdotool"], capture_output=True, text=True)
+        if xdotool_check.returncode == 0:
+            # Send F5 key to refresh Chromium
+            result = subprocess.run(["xdotool", "key", "F5"], env={**os.environ, "DISPLAY": ":0"}, capture_output=True, text=True)
+            if result.returncode == 0:
+                logger.info("Display reload triggered successfully via xdotool")
+                return jsonify({"success": True, "message": "Display reloaded (chromium)"})
+        
+        # Fallback: restart the entire chromium process
+        chromium_result = subprocess.run(["pkill", "-f", "chromium-browser"], capture_output=True, text=True)
+        if chromium_result.returncode == 0:
+            logger.info("Chromium browser restarted")
+            return jsonify({"success": True, "message": "Browser restarted"})
+        
+        logger.warning("No display process found to reload")
+        return jsonify({"success": False, "error": "No display process found"}), 404
+        
     except Exception as e:
         logger.error(f"Error reloading display: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/admin/display/screensaver", methods=["POST"])
+def update_screensaver():
+    """Update screensaver timeout immediately without restart"""
+    try:
+        import subprocess
+        
+        # Get the current config
+        config = config_manager.get_config()
+        timeout_minutes = config.get("display", {}).get("screensaver_timeout", 0)
+        
+        # Apply the timeout using xset
+        if timeout_minutes == 0:
+            # Disable screensaver
+            commands = [
+                ["xset", "s", "off"],
+                ["xset", "-dpms"],
+                ["xset", "s", "noblank"]
+            ]
+            logger.info("Disabling screensaver")
+        else:
+            # Enable screensaver with timeout
+            timeout_seconds = timeout_minutes * 60
+            commands = [
+                ["xset", "s", str(timeout_seconds), str(timeout_seconds)],
+                ["xset", "+dpms"],
+                ["xset", "dpms", str(timeout_seconds), str(timeout_seconds), str(timeout_seconds)]
+            ]
+            logger.info(f"Setting screensaver timeout to {timeout_minutes} minutes")
+        
+        # Execute commands
+        for cmd in commands:
+            result = subprocess.run(cmd, capture_output=True, text=True, env={**os.environ, "DISPLAY": ":0"})
+            if result.returncode != 0:
+                logger.warning(f"Command {' '.join(cmd)} failed: {result.stderr}")
+        
+        return jsonify({
+            "success": True,
+            "timeout_minutes": timeout_minutes,
+            "message": f"Screensaver timeout updated to {timeout_minutes} minutes" if timeout_minutes > 0 else "Screensaver disabled"
+        })
+        
+    except Exception as e:
+        logger.error(f"Error updating screensaver: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -1027,14 +1139,77 @@ def serve_layout_preview(filename):
 @app.route("/", defaults={"path": ""})
 @app.route("/<path:path>")
 def serve_react_app(path):
-    """Serve the React application for all non-API routes"""
+    """Serve the React application for all non-API routes with injected theme"""
     # Don't serve API routes
     if path.startswith("api/"):
         return jsonify({"error": "Not found"}), 404
 
-    # For all routes (including /config, /setup), serve index.html
-    # This allows React Router to handle client-side routing
-    return send_from_directory(app.static_folder, "index.html")
+    # Read the index.html file
+    index_path = os.path.join(app.static_folder, "index.html")
+    with open(index_path, 'r') as f:
+        html_content = f.read()
+    
+    # Get current configuration including theme
+    config = config_manager.get_config()
+    display_config = config.get("display", {})
+    theme_id = display_config.get("theme", "dark")
+    
+    # Get the full theme data
+    theme_data = theme_manager.get_theme(theme_id)
+    if not theme_data:
+        theme_data = theme_manager.get_theme("dark")  # Fallback to dark theme
+    
+    # Create the theme injection script
+    theme_script = f"""
+    <script>
+      // Injected theme configuration from server
+      (function() {{
+        try {{
+          // Apply theme immediately
+          const theme = {json.dumps(theme_id)};
+          const themeData = {json.dumps(theme_data)};
+          
+          // Set theme attribute
+          document.documentElement.setAttribute('data-theme', theme);
+          
+          // Apply CSS variables immediately
+          if (themeData && themeData.colors) {{
+            const root = document.documentElement;
+            Object.entries(themeData.colors).forEach(([key, value]) => {{
+              root.style.setProperty(`--${{key}}`, value);
+            }});
+          }}
+          
+          // Store in localStorage for consistency
+          const config = {{
+            display: {{
+              theme: theme,
+              ...{json.dumps(display_config)}
+            }}
+          }};
+          localStorage.setItem('dataorbConfig', JSON.stringify(config));
+          
+          // Mark theme as loaded
+          document.documentElement.setAttribute('data-theme-loaded', 'true');
+        }} catch (e) {{
+          console.error('Failed to apply server-injected theme:', e);
+        }}
+      }})();
+    </script>
+    """
+    
+    # Replace the existing theme script or inject before </head>
+    # First, try to replace the existing theme script
+    if '// Apply theme immediately to prevent flash' in html_content:
+        # Find and replace the entire existing theme script
+        import re
+        pattern = r'<script>\s*// Apply theme immediately to prevent flash.*?</script>'
+        html_content = re.sub(pattern, theme_script, html_content, flags=re.DOTALL)
+    else:
+        # Otherwise inject before </head>
+        html_content = html_content.replace('</head>', theme_script + '\n</head>')
+    
+    return html_content
 
 
 if __name__ == "__main__":

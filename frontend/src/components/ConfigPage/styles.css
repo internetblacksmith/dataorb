@@ -3,13 +3,13 @@
   height: 100vh;
   width: 100%;
   background: var(--bg-gradient, linear-gradient(135deg, #444444 0%, #822802 100%));
-  color: var(--text-color, #ffffff);
+  color: var(--text, #ffffff);
   font-family:
     -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
   position: relative;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: auto;
 }
 
 .config-page.loading {
@@ -75,7 +75,8 @@
 .config-content {
   display: flex;
   flex: 1;
-  overflow: hidden;
+  overflow: auto;
+  min-height: 0;
 }
 
 .config-tabs {
@@ -103,12 +104,12 @@
 
 .tab:hover {
   background: var(--stat-bg, rgba(244, 76, 4, 0.1));
-  color: var(--text-color, #ffffff);
+  color: var(--text, #ffffff);
 }
 
 .tab.active {
   background: var(--stat-bg, rgba(244, 76, 4, 0.2));
-  color: var(--text-color, #ffffff);
+  color: var(--text, #ffffff);
   border-right: 3px solid var(--accent, #f44c04);
 }
 
@@ -146,7 +147,7 @@
   display: block;
   margin-bottom: 8px;
   font-weight: 500;
-  color: var(--text-color, rgba(255, 255, 255, 0.9));
+  color: var(--text, rgba(255, 255, 255, 0.9));
 }
 
 .form-group input,
@@ -157,7 +158,7 @@
   border: 2px solid var(--border, rgba(244, 76, 4, 0.3));
   border-radius: 8px;
   background: var(--stat-bg, rgba(255, 255, 255, 0.1));
-  color: var(--text-color, #ffffff);
+  color: var(--text, #ffffff);
   font-size: 0.95em;
   transition: all 0.3s ease;
 }
@@ -267,7 +268,7 @@
 }
 
 .info-card p strong {
-  color: var(--text-color, rgba(255, 255, 255, 0.9));
+  color: var(--text, rgba(255, 255, 255, 0.9));
   margin-right: 8px;
 }
 
@@ -346,7 +347,7 @@
 
 .layout-card {
   background: var(--bg-secondary, rgba(255, 255, 255, 0.05));
-  border: 2px solid var(--border-color, rgba(255, 255, 255, 0.1));
+  border: 2px solid var(--border, rgba(255, 255, 255, 0.1));
   border-radius: 10px;
   padding: 12px;
   cursor: pointer;
@@ -356,13 +357,13 @@
 }
 
 .layout-card:hover {
-  border-color: var(--accent-color, #f44c04);
+  border-color: var(--accent, #f44c04);
   transform: translateY(-2px);
   box-shadow: 0 5px 15px var(--shadow, rgba(244, 76, 4, 0.2));
 }
 
 .layout-card.active {
-  border-color: var(--accent-color, #f44c04);
+  border-color: var(--accent, #f44c04);
   background: rgba(244, 76, 4, 0.1);
   box-shadow: 0 0 15px var(--shadow, rgba(244, 76, 4, 0.3));
 }
@@ -378,7 +379,7 @@
   align-items: center;
   justify-content: center;
   font-size: 0.75em;
-  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
 }
 
 .layout-preview img {
@@ -405,12 +406,14 @@
   position: absolute;
   top: 8px;
   right: 8px;
-  background: var(--accent-color, #f44c04);
-  color: white;
+  background: var(--accent, #f44c04);
+  color: var(--background, #000);
   padding: 3px 6px;
   border-radius: 10px;
   font-size: 0.7em;
   font-weight: 600;
+  border: 1px solid var(--accent, #f44c04);
+  box-shadow: 0 0 10px var(--glow-primary, rgba(244, 76, 4, 0.5));
 }
 
 /* Dark theme adjustments */
@@ -421,7 +424,7 @@ select option {
 
 select option {
   background: var(--container-bg, #444444);
-  color: var(--text-color, white);
+  color: var(--text, white);
 }
 
 /* Metric Configuration Styles */
@@ -577,7 +580,7 @@ select option {
   font-size: 0.8em;
   border: 1px solid var(--border, rgba(255, 255, 255, 0.3));
   background: var(--stat-bg, rgba(255, 255, 255, 0.1));
-  color: var(--text-color, white);
+  color: var(--text, white);
   border-radius: 5px;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -641,4 +644,119 @@ select option {
 
 .theme-card-actions button.delete:hover {
   background: rgba(239, 68, 68, 0.3);
+}
+
+/* Extra small screens (Pi display 480x480) - Additional fixes */
+@media (max-width: 480px) {
+  .config-page {
+    font-size: 14px;
+    overflow-y: auto;
+    height: 100vh;
+  }
+  
+  .config-header {
+    padding: 10px 15px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(0, 0, 0, 0.9);
+  }
+  
+  .config-header h1 {
+    font-size: 1.3em;
+  }
+  
+  .config-content {
+    flex-direction: column;
+    height: auto;
+    overflow: visible;
+  }
+  
+  .config-tabs {
+    position: sticky;
+    top: 60px;
+    z-index: 99;
+    background: rgba(0, 0, 0, 0.8);
+    padding: 5px 0;
+    flex-wrap: nowrap;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+    border-right: none;
+    border-bottom: 2px solid var(--border, rgba(244, 76, 4, 0.2));
+    height: auto;
+  }
+  
+  .tab {
+    min-width: auto;
+    padding: 8px 12px;
+    font-size: 0.85em;
+    border-right: none;
+    border-bottom: 3px solid transparent;
+  }
+  
+  .tab.active {
+    border-right: none;
+    border-bottom: 3px solid var(--accent, #f44c04);
+  }
+  
+  .tab-icon {
+    font-size: 1em;
+    margin-right: 6px;
+  }
+  
+  .config-panel {
+    padding: 15px;
+    height: auto;
+    overflow: visible;
+  }
+  
+  .config-section h2 {
+    font-size: 1.2em;
+    margin-bottom: 15px;
+  }
+  
+  .form-group {
+    margin-bottom: 15px;
+  }
+  
+  .form-group label {
+    font-size: 0.9em;
+    margin-bottom: 5px;
+  }
+  
+  input[type="text"],
+  input[type="password"],
+  input[type="number"],
+  select,
+  textarea {
+    font-size: 14px;
+    padding: 8px 10px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  
+  .btn, button {
+    padding: 8px 14px;
+    font-size: 0.85em;
+  }
+  
+  .layout-grid,
+  .theme-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  
+  .metrics-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  
+  .metric-config-group {
+    padding: 10px;
+  }
+  
+  .message {
+    padding: 8px 15px;
+    font-size: 0.85em;
+  }
 }

@@ -92,7 +92,7 @@
 }
 
 .setup-step strong {
-  color: var(--text-color, #ffffff);
+  color: var(--text, #ffffff);
   font-size: 1.1em;
   display: block;
 }

@@ -417,7 +417,7 @@
 
 .dashboard-analytics .loading-text {
   font-size: 1.2em;
-  color: var(--text-color, #ffffff);
+  color: var(--text, #ffffff);
   font-weight: 600;
 }
 

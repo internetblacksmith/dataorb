@@ -3,7 +3,7 @@
   /* Default dark theme */
   --bg-gradient: linear-gradient(135deg, #444444 0%, #2a2a2a 100%);
   --container-bg: radial-gradient(circle, #444444 0%, #2a2a2a 100%);
-  --text-color: #ffffff;
+  --text: #ffffff;
   --text-secondary: #b4b4b4;
   --accent: #f44c04;
   --accent-secondary: #6e8cf9;
@@ -21,7 +21,7 @@
 /* Apply CSS variables to elements */
 .app {
   background: var(--bg-gradient);
-  color: var(--text-color);
+  color: var(--text);
 }
 
 .circular-container {

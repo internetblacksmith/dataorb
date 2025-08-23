@@ -42,7 +42,7 @@
 }
 
 .dashboard-executive .loading-text {
-  color: var(--text-color, #ffffff);
+  color: var(--text, #ffffff);
   font-size: 14px;
   animation: fadeInOut 2s infinite;
 }
@@ -71,7 +71,7 @@
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  color: var(--text-color, #ffffff);
+  color: var(--text, #ffffff);
   min-width: 120px;
   display: inline-block;
 }
@@ -151,7 +151,7 @@
 .dashboard-executive .brand-name {
   font-size: 12px;
   font-weight: 700;
-  color: var(--text-color, #ffffff);
+  color: var(--text, #ffffff);
   letter-spacing: 2px;
   text-transform: uppercase;
   opacity: 0.8;
@@ -441,7 +441,7 @@
 }
 
 .dashboard-executive .status-value {
-  color: var(--text-color, #ffffff);
+  color: var(--text, #ffffff);
   font-weight: 600;
 }
 

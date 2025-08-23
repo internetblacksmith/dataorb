@@ -10,45 +10,7 @@
       content="DataOrb - Analytics Dashboard"
     />
     <title>DataOrb</title>
-    <script>
-      // Apply theme immediately to prevent flash
-      (function() {
-        try {
-          // Get stored config
-          const stored = localStorage.getItem('dataorbConfig');
-          if (stored) {
-            const config = JSON.parse(stored);
-            const theme = config.display?.theme;
-            if (theme && theme !== 'dark') {
-              // Add data-theme attribute immediately
-              document.documentElement.setAttribute('data-theme', theme);
-              
-              // If it's a custom theme, try to apply critical styles
-              if (theme !== 'light') {
-                // Apply basic theme colors to prevent orange flash
-                const style = document.createElement('style');
-                style.innerHTML = `
-                  :root {
-                    --accent: #10b981 !important;
-                    --accent-secondary: #6e8cf9 !important;
-                    --stat-value: linear-gradient(135deg, #10b981 0%, #6e8cf9 100%) !important;
-                    --border: rgba(16, 185, 129, 0.3) !important;
-                    --stat-border: rgba(16, 185, 129, 0.3) !important;
-                    --glow-primary: rgba(16, 185, 129, 0.5) !important;
-                  }
-                `;
-                document.head.appendChild(style);
-              }
-            }
-          }
-          // Mark theme as loaded
-          document.body.setAttribute('data-theme-loaded', 'true');
-        } catch (e) {
-          // Silently fail if localStorage is not available
-          document.body.setAttribute('data-theme-loaded', 'true');
-        }
-      })();
-    </script>
+    <!-- Theme will be injected by server to prevent flash -->
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>

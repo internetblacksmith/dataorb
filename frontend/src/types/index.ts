@@ -86,6 +86,7 @@ export interface DisplayConfig {
   theme?: string;
   layout?: string;
   refresh_interval?: number;
+  screensaver_timeout?: number;
   metrics?: {
     classic?: {
       top?: MetricConfig;

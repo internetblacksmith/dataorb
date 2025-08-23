@@ -1152,6 +1152,7 @@
           - matchbox-window-manager
           - unclutter
           - surf
+          - xdotool  # For sending key events to reload Chromium
         state: present
       tags: ['display', 'xorg']
     
@@ -1271,22 +1272,60 @@
           #!/bin/bash
           # Start display components for Pi Analytics Dashboard
           
+          # ============================================
+          # REMOTE DEBUGGING OPTIONS
+          # ============================================
+          # Uncomment the following lines to enable remote debugging:
+          #
+          # For Chromium remote debugging (access via chrome://inspect on another computer):
+          # - Uncomment the REMOTE_DEBUG_PORT line below
+          # - Add the --remote-debugging-port and --remote-debugging-address flags to chromium-browser
+          # - Access from your computer: chrome://inspect → Configure → Add pi-ip:9222
+          #
+          # REMOTE_DEBUG_PORT=9222
+          # REMOTE_DEBUG_ADDRESS=0.0.0.0  # Allow connections from any IP (security risk on public networks!)
+          #
+          # For SSH X11 forwarding (view display remotely):
+          # - Connect with: ssh -X pi@raspberry-pi
+          # - The display will be forwarded to your local machine
+          #
+          # For VNC remote desktop:
+          # - Install VNC: sudo apt-get install realvnc-vnc-server
+          # - Enable VNC: sudo raspi-config → Interface Options → VNC
+          # - Connect with VNC Viewer to raspberry-pi:5900
+          # ============================================
+          
           # Start matchbox window manager (no decorations, no cursor)
           matchbox-window-manager -use_titlebar no -use_cursor no &
           sleep 2
           
+          # Configure screen timeout after X is running
+          # Default to disabled for kiosk mode
+          xset s off 2>/dev/null || true
+          xset -dpms 2>/dev/null || true
+          xset s noblank 2>/dev/null || true
+          
           # Start browser in fullscreen (surf for Pi Zero W, Chromium for others)
           {% if browser_choice == 'chromium-browser' %}
+          # Chromium browser with kiosk mode
+          # Uncomment the following lines to enable remote debugging:
+          # --remote-debugging-port=${REMOTE_DEBUG_PORT:-9222} \
+          # --remote-debugging-address=${REMOTE_DEBUG_ADDRESS:-127.0.0.1} \
+          # --enable-logging --v=1 \
           exec chromium-browser \
             --kiosk \
             --noerrdialogs \
             --disable-infobars \
+            --no-sandbox \
+            --disable-dev-shm-usage \
+            --disable-gpu \
             --check-for-update-interval=2592000 \
             --window-size={{ display_width }},{{ display_height }} \
             --window-position=0,0 \
             {% if chromium_extra_flags is defined %}{{ chromium_extra_flags }} \{% endif %}
             http://localhost:{{ backend_port | default(80) }}
           {% else %}
+          # Surf browser (lightweight, no remote debugging available)
           exec surf -F http://localhost:{{ backend_port | default(80) }}
           {% endif %}
         dest: "{{ app_dir }}/scripts/start-display.sh"

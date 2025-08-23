@@ -163,6 +163,48 @@ The playbook now correctly handles HyperPixel installation on fresh SD cards:
 - Automatic reboot in playbook (was manual)
 - Simplified - removed unnecessary cleanup for fresh cards
 
+## 🛠️ Troubleshooting Quick Fixes
+
+**IMPORTANT**: Never commit temporary fix scripts. All fixes should be incorporated into the main playbook or documented here for manual application.
+
+### Manual Fix Commands
+
+#### Fix Display Reload for Chromium
+```bash
+# Install xdotool for Chromium refresh support
+sudo apt-get update && sudo apt-get install -y xdotool
+
+# Test reload
+DISPLAY=:0 xdotool key F5
+
+# Restart backend to apply
+sudo systemctl restart pi-analytics-backend
+```
+
+#### Fix HyperPixel Prerequisites
+```bash
+# Enable I2C and SPI
+sudo raspi-config nonint do_i2c 0
+sudo raspi-config nonint do_spi 0
+
+# Set GL driver to Legacy (required for HyperPixel)
+sudo raspi-config nonint do_gldriver G1
+
+# Install required packages
+sudo apt-get update
+sudo apt-get install -y git python3-pip python3-dev
+```
+
+#### Test LCD Without Full Playbook
+```bash
+# Quick test for HyperPixel
+sudo raspi-gpio set 19 op dh  # Turn on backlight
+sudo xinit /usr/bin/surf -F http://localhost -- :0 -nocursor
+
+# Quick test for Waveshare
+sudo fbi -d /dev/fb0 -T 1 -a /usr/share/pixmaps/raspberry-pi-logo.png
+```
+
 ## 📋 Known Issues & Solutions
 
 ### Issue #1: Ansible APT 404 Errors (Package Not Found)
@@ -307,6 +349,46 @@ disable_overscan=1
 - Ensure playbook completes the Waveshare configuration section
 - Check HDMI cable connection
 - Power LCD before Pi for proper initialization
+
+---
+
+### Issue #10: Chromium Sandbox Error on Pi Zero 2W
+**Problem**: X server error with Chromium crashing: "Running as root without --no-sandbox is not supported"
+
+**Root Cause**: Chromium refuses to run as root without disabling sandbox for security reasons
+
+**Solution**:
+Add sandbox disable flags to Chromium launch command:
+```bash
+chromium-browser \
+  --no-sandbox \
+  --disable-dev-shm-usage \
+  --disable-gpu \
+  # ... other flags
+```
+
+**Prevention**: 
+- Always include sandbox flags when running Chromium as root
+- Consider running as non-root user when possible
+- Already fixed in playbook.yml and quick-lcd-install.sh
+
+---
+
+### Issue #11: Display Not Reloading on Config Changes (Chromium)
+**Problem**: When using Chromium browser, display doesn't reload when layout or config changes
+
+**Root Cause**: SIGHUP signal only works for surf browser, Chromium needs different reload method
+
+**Solution**:
+Install xdotool for sending F5 key to Chromium:
+```bash
+sudo apt-get install -y xdotool
+```
+
+**Prevention**:
+- xdotool now included in playbook packages
+- Backend automatically detects browser type and uses appropriate reload method
+- Fallback to process restart if xdotool unavailable
 
 ## Quality Gate Requirements
 
@@ -484,6 +566,30 @@ The React frontend is specifically optimized for:
 - Display rotation configured in /boot/config.txt
 - Chrome kiosk mode with window size 480x480
 - Systemd service handles auto-start and crash recovery
+
+## Remote Debugging
+
+The start-display.sh script includes commented-out options for remote debugging:
+
+### Chrome DevTools Remote Debugging
+1. Edit `/home/pianalytics/pi-analytics-dashboard/scripts/start-display.sh`
+2. Uncomment the `REMOTE_DEBUG_PORT` and `REMOTE_DEBUG_ADDRESS` lines
+3. Uncomment the `--remote-debugging-port` and `--remote-debugging-address` flags
+4. Restart the display service: `sudo systemctl restart pi-analytics-display`
+5. From your computer, open Chrome and go to `chrome://inspect`
+6. Click "Configure" and add `pi-ip:9222`
+7. You can now inspect and debug the Pi's Chrome instance remotely
+
+### SSH X11 Forwarding
+- Connect with: `ssh -X pi@raspberry-pi`
+- The display will be forwarded to your local machine
+
+### VNC Remote Desktop
+1. Install VNC: `sudo apt-get install realvnc-vnc-server`
+2. Enable VNC: `sudo raspi-config` → Interface Options → VNC
+3. Connect with VNC Viewer to `raspberry-pi:5900`
+
+**Security Note**: Remote debugging on `0.0.0.0` allows connections from any IP. Only use on trusted networks!
 
 ## OTA Update System
 

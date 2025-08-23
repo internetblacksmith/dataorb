@@ -20,7 +20,7 @@
   width: 480px;
   height: 480px;
   background: var(--bg-gradient, linear-gradient(135deg, #0a0f1b 0%, #1a1f2e 100%));
-  color: var(--text-color, #ffffff);
+  color: var(--text, #ffffff);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -441,7 +441,7 @@
 }
 
 .dashboard-modern .loading-text {
-  color: var(--text-color, #ffffff);
+  color: var(--text, #ffffff);
   font-size: 1em;
   margin: 0;
   text-align: center;
@@ -525,7 +525,7 @@
 }
 
 .dashboard-modern .setup-step strong {
-  color: var(--text-color, #ffffff);
+  color: var(--text, #ffffff);
   font-size: 1em;
   display: block;
 }

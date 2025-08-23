@@ -220,6 +220,29 @@ cat > /usr/local/bin/start-display.sh << EOF
 #!/bin/bash
 # Start display for DataOrb
 
+# ============================================
+# REMOTE DEBUGGING OPTIONS
+# ============================================
+# Uncomment the following lines to enable remote debugging:
+#
+# For Chromium remote debugging (access via chrome://inspect on another computer):
+# - Uncomment the REMOTE_DEBUG_PORT line below
+# - Add the --remote-debugging-port and --remote-debugging-address flags to chromium-browser
+# - Access from your computer: chrome://inspect → Configure → Add pi-ip:9222
+#
+# REMOTE_DEBUG_PORT=9222
+# REMOTE_DEBUG_ADDRESS=0.0.0.0  # Allow connections from any IP (security risk on public networks!)
+#
+# For SSH X11 forwarding (view display remotely):
+# - Connect with: ssh -X pi@raspberry-pi
+# - The display will be forwarded to your local machine
+#
+# For VNC remote desktop:
+# - Install VNC: sudo apt-get install realvnc-vnc-server
+# - Enable VNC: sudo raspi-config → Interface Options → VNC
+# - Connect with VNC Viewer to raspberry-pi:5900
+# ============================================
+
 # Kill any existing X sessions
 pkill -x Xorg 2>/dev/null || true
 pkill -x $BROWSER 2>/dev/null || true
@@ -230,21 +253,35 @@ if [ "$DISPLAY_TYPE" = "hyperpixel_round" ]; then
     raspi-gpio set 19 op dh 2>/dev/null || true
 fi
 
+# Configure screen timeout (disable by default for kiosk)
+xset s off
+xset -dpms
+xset s noblank
+
 # Start matchbox window manager (no decorations, no cursor)
 matchbox-window-manager -use_titlebar no -use_cursor no &
 sleep 2
 
 # Start browser in fullscreen
 if [ "$BROWSER" = "chromium-browser" ]; then
+    # Chromium browser with kiosk mode
+    # Uncomment the following lines to enable remote debugging:
+    # --remote-debugging-port=\${REMOTE_DEBUG_PORT:-9222} \\
+    # --remote-debugging-address=\${REMOTE_DEBUG_ADDRESS:-127.0.0.1} \\
+    # --enable-logging --v=1 \\
     exec chromium-browser \\
         --kiosk \\
         --noerrdialogs \\
         --disable-infobars \\
+        --no-sandbox \\
+        --disable-dev-shm-usage \\
+        --disable-gpu \\
         --check-for-update-interval=2592000 \\
-        --window-size=${DISPLAY_WIDTH},${DISPLAY_HEIGHT} \\
+        --window-size=\${DISPLAY_WIDTH},\${DISPLAY_HEIGHT} \\
         --window-position=0,0 \\
         http://localhost
 else
+    # Surf browser (lightweight, no remote debugging available)
     exec surf -F http://localhost
 fi
 EOF

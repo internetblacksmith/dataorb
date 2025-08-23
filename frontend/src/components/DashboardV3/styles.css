@@ -107,7 +107,7 @@
 .dashboard-v3 .time-display .time {
   /* font-size: 0.55em !important; */
   font-weight: 600;
-  color: var(--text-color, #ffffff);
+  color: var(--text, #ffffff);
   line-height: 1;
 }
 
@@ -393,7 +393,7 @@
 
 .loading-text {
   font-size: 1.2em;
-  color: var(--text-color, #ffffff);
+  color: var(--text, #ffffff);
   font-weight: 600;
 }
 

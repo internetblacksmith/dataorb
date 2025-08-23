@@ -183,11 +183,67 @@ if [ "$NEEDS_EDIT" = true ]; then
     if [[ ! $REPLY =~ ^[Nn]$ ]]; then
         ${EDITOR:-nano} inventory.ini
     else
-        echo -e "${YELLOW}Warning: Connection may fail without proper configuration${NC}"
-        read -p "Continue anyway? [y/N]: " -n 1 -r
+        # Show full inventory configuration and ask for confirmation
+        echo ""
+        echo -e "${YELLOW}Current inventory configuration:${NC}"
+        echo "========================================="
+        
+        # Show the [pi] section
+        echo -e "${BLUE}[pi] section:${NC}"
+        awk '
+            /^\[pi\]$/ { in_pi=1; print "  " $0; next }
+            /^\[pi:vars\]$/ { in_pi=0 }
+            /^\[/ && !/^\[pi/ { in_pi=0 }
+            in_pi && !/^$/ { print "  " $0 }
+        ' inventory.ini
+        
+        echo ""
+        echo -e "${BLUE}[pi:vars] section:${NC}"
+        awk '
+            /^\[pi:vars\]$/ { in_vars=1; print "  " $0; next }
+            /^\[/ && !/^\[pi:vars\]$/ { in_vars=0 }
+            in_vars && !/^$/ { print "  " $0 }
+        ' inventory.ini
+        
+        echo "========================================="
+        echo ""
+        
+        # Extract active configuration for summary
+        ACTIVE_HOST=$(awk '
+            /^\[pi\]$/ { in_pi=1; next }
+            /^\[/ { in_pi=0 }
+            in_pi && !/^#/ && !/^$/ && /ansible_/ { print $1; exit }
+        ' inventory.ini)
+        
+        PI_MODEL=$(awk -F= '/^pi_model=/ {gsub(/[ \t]/, "", $2); print $2}' inventory.ini)
+        DISPLAY_TYPE=$(awk -F= '/^display_type=/ {gsub(/[ \t]/, "", $2); print $2}' inventory.ini)
+        
+        if [ -n "$ACTIVE_HOST" ]; then
+            echo -e "${GREEN}Active configuration detected:${NC}"
+            echo "  • Host: $ACTIVE_HOST"
+            echo "  • Pi Model: ${PI_MODEL:-not set}"
+            echo "  • Display Type: ${DISPLAY_TYPE:-not set}"
+        else
+            echo -e "${RED}No active host configuration found!${NC}"
+            echo "All host lines are commented out."
+        fi
+        
+        echo ""
+        echo -e "${YELLOW}⚠️  Warning: Connection may fail without proper configuration${NC}"
+        echo ""
+        read -p "Are you sure you want to continue with this configuration? [y/N]: " -n 1 -r
         echo ""
         if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            exit 1
+            echo "Returning to edit option..."
+            echo ""
+            read -p "Open editor to configure inventory? [Y/n]: " -n 1 -r
+            echo ""
+            if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+                ${EDITOR:-nano} inventory.ini
+            else
+                echo "Exiting without changes."
+                exit 1
+            fi
         fi
     fi
 fi

@@ -67,7 +67,7 @@ export const DISPLAY_DIMENSIONS = {
 export const CSS_VARIABLES = {
   BG_GRADIENT: '--bg-gradient',
   CONTAINER_BG: '--container-bg',
-  TEXT_COLOR: '--text-color',
+  TEXT_COLOR: '--text',
   TEXT_SECONDARY: '--text-secondary',
   ACCENT: '--accent',
   ACCENT_SECONDARY: '--accent-secondary',

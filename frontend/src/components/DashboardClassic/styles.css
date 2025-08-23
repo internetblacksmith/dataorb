@@ -19,7 +19,7 @@
   width: 480px;
   height: 480px;
   background: var(--bg-gradient, linear-gradient(135deg, #444444 0%, #2a2a2a 100%));
-  color: var(--text-color, white);
+  color: var(--text, white);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -253,7 +253,7 @@
 }
 
 .dashboard-classic .loading-text {
-  color: var(--text-color, #ffffff);
+  color: var(--text, #ffffff);
   font-size: 1em;
   margin: 0;
   text-align: center;
