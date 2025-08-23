@@ -308,31 +308,73 @@
       changed_when: false
       tags: ['display']
 
-    - name: Install HyperPixel dependencies
-      # Packages required for HyperPixel display communication and control
+    - name: Install HyperPixel core dependencies (batch 1)
+      # Essential packages first
       apt:
         name:
-          - git                # For cloning HyperPixel repo
-          - python3-pip        # Python package manager
-          - python3-smbus      # I2C/SMBus support
-          - python3-spidev     # SPI interface
-          - python3-numpy      # Numerical computations
-          - python3-pil        # Python Imaging Library
-          - python3-rpi.gpio   # GPIO control
-          - i2c-tools          # I2C debugging tools
-          - raspi-config       # Raspberry Pi configuration tool
-          - device-tree-compiler  # For building device tree overlays
-          - build-essential    # Compilation tools
-          - xserver-xorg       # X server (from working script)
-          - xinit              # X initializer (from working script)
-          - x11-xserver-utils  # X utilities (from working script)
-          - matchbox-window-manager  # Window manager (from working script)
-          - surf               # Browser (from working script)
-          - fbset              # Framebuffer utilities (from working script)
+          - git
+          - python3-pip
+          - i2c-tools
+          - raspi-config
         state: present
         update_cache: yes
       when: display_type == 'hyperpixel_round'
       tags: ['display', 'hyperpixel']
+      retries: 2
+      delay: 10
+
+    - name: Install HyperPixel Python dependencies (batch 2)
+      # Python libraries for hardware control
+      apt:
+        name:
+          - python3-smbus
+          - python3-spidev
+          - python3-numpy
+          - python3-pil
+          - python3-rpi.gpio
+        state: present
+      when: display_type == 'hyperpixel_round'
+      tags: ['display', 'hyperpixel']
+      retries: 2
+      delay: 10
+
+    - name: Install build tools (batch 3)
+      # Compilation tools - memory intensive
+      apt:
+        name:
+          - device-tree-compiler
+          - build-essential
+        state: present
+      when: display_type == 'hyperpixel_round'
+      tags: ['display', 'hyperpixel']
+      retries: 2
+      delay: 10
+
+    - name: Install X11 dependencies (batch 4)
+      # X server packages
+      apt:
+        name:
+          - xserver-xorg
+          - xinit
+          - x11-xserver-utils
+        state: present
+      when: display_type == 'hyperpixel_round'
+      tags: ['display', 'hyperpixel']
+      retries: 2
+      delay: 10
+
+    - name: Install display software (batch 5)
+      # Window manager and browser
+      apt:
+        name:
+          - matchbox-window-manager
+          - surf
+          - fbset
+        state: present
+      when: display_type == 'hyperpixel_round'
+      tags: ['display', 'hyperpixel']
+      retries: 2
+      delay: 10
     
     # Install HyperPixel driver - MUST compile fresh and reboot
     - name: Clone HyperPixel2r repository
@@ -742,10 +784,11 @@
       when: needs_swap
       tags: ['swap']
     
-    - name: Create swap file (512MB for faster creation)
-      # Creates a 512MB swap file (reduced from 1GB for faster deployment)
+    - name: Create swap file (2GB for frontend builds)
+      # Creates a 2GB swap file for memory-intensive operations like npm builds
+      # This process takes a few minutes to complete on Pi Zero
       command: |
-        dd if=/dev/zero of=/swapfile bs=1M count=512 status=progress
+        dd if=/dev/zero of=/swapfile bs=1M count=2048 status=progress
       when: 
         - needs_swap
         - not swap_file_check.stat.exists | default(false)
@@ -779,6 +822,20 @@
         path: /etc/fstab
         line: '/swapfile none swap sw 0 0'
         create: yes
+      when: needs_swap
+      tags: ['swap']
+    
+    - name: Configure swap parameters for better build performance
+      # Lower swappiness to prevent aggressive swapping
+      # Increase vfs_cache_pressure for better file caching during builds
+      sysctl:
+        name: "{{ item.name }}"
+        value: "{{ item.value }}"
+        state: present
+        sysctl_set: yes
+      loop:
+        - { name: 'vm.swappiness', value: '10' }
+        - { name: 'vm.vfs_cache_pressure', value: '50' }
       when: needs_swap
       tags: ['swap']
     
@@ -1003,9 +1060,9 @@
       tags: ['app', 'frontend']
     
     - name: Build frontend with memory limit
-      # Build the React app with optimized memory settings for Pi Zero W
+      # Build the React app with sufficient memory allocation for webpack
       shell: |
-        export NODE_OPTIONS="--max-old-space-size=384"  # Slightly more memory for build process
+        export NODE_OPTIONS="--max-old-space-size=768"  # Memory limit for Node.js process
         npm run build
       args:
         chdir: "{{ app_dir }}/frontend"
@@ -1171,9 +1228,9 @@
         backend_port: 80
       tags: ['services', 'display']
     
-    # NOTE: Removed kiosk autostart script and rc.local entry
-    # The pi-analytics-display systemd service now handles all X server
-    # and browser startup, avoiding conflicts with multiple X sessions
+    # NOTE: Kiosk autostart is handled by systemd service
+    # The pi-analytics-display service manages X server and browser startup
+    # to avoid conflicts with multiple X sessions
     
     - name: Remove old autostart from rc.local if exists
       lineinfile:
@@ -1319,6 +1376,10 @@
             --no-sandbox \
             --disable-dev-shm-usage \
             --disable-gpu \
+            --disable-low-end-device-mode \
+            --disable-low-res-tiling \
+            --disable-features=TranslateUI \
+            --disable-session-crashed-bubble \
             --check-for-update-interval=2592000 \
             --window-size={{ display_width }},{{ display_height }} \
             --window-position=0,0 \

@@ -14,10 +14,7 @@ Environment="DISPLAY=:0"
 Environment="XAUTHORITY=/home/{{ app_user }}/.Xauthority"
 Environment="HOME=/home/{{ app_user }}"
 
-# Wait for backend and previous X cleanup
-ExecStartPre=/bin/bash -c 'sleep 10; pkill -x Xorg || true; pkill -x surf || true; pkill -x matchbox-window-manager || true; sleep 2'
-
-# Start X server with window manager and surf browser
+# Start X server with window manager and browser
 ExecStart=/usr/bin/xinit {{ app_dir }}/scripts/start-display.sh -- :0 -nocursor vt2
 
 # Restart policy
