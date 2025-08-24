@@ -5,8 +5,8 @@
   /* Neutral fallback theme - no orange to prevent flash */
   --bg-gradient: linear-gradient(135deg, #1a1a1a 0%, #0a0a0a 100%);
   --container-bg: radial-gradient(circle, #1a1a1a 0%, #0a0a0a 100%);
-  --text: #ffffff;
-  --text-secondary: #888888;
+  --text: #fff;
+  --text-secondary: #888;
   --accent: #4a5568;
   --accent-secondary: #718096;
   --border: rgba(74, 85, 104, 0.5);
@@ -14,10 +14,12 @@
   --stat-bg: linear-gradient(135deg, rgba(74, 85, 104, 0.2) 0%, rgba(113, 128, 150, 0.2) 100%);
   --stat-border: rgba(74, 85, 104, 0.4);
   --stat-value: linear-gradient(135deg, #4a5568 0%, #718096 100%);
-  --stat-label: #888888;
+  --stat-label: #888;
   --status-dot: #48bb78;
   --glow-primary: rgba(74, 85, 104, 0.5);
   --glow-secondary: rgba(113, 128, 150, 0.1);
+  --trend-up: #48bb78;
+  --trend-down: #f56565;
 }
 
 /* Apply CSS variables to elements */
@@ -43,7 +45,6 @@
 .stat-value {
   background: var(--stat-value);
   background-clip: text;
-  -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
@@ -54,7 +55,6 @@
 .logo-text {
   background: var(--stat-value);
   background-clip: text;
-  -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   text-shadow: 0 0 20px var(--glow-primary);
 }

@@ -1,7 +1,7 @@
 /* Setup Page Styles */
 .setup-page {
   min-height: 100vh;
-  background: linear-gradient(135deg, #822802 0%, #444444 100%);
+  background: linear-gradient(135deg, #822802 0%, #444 100%);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -44,7 +44,7 @@
   justify-content: center;
   align-items: center;
   margin: 0 auto 20px;
-  box-shadow: 0 0 20px var(--shadow));
+  box-shadow: 0 0 20px var(--shadow);
 }
 
 .logo-text {
@@ -62,7 +62,7 @@
 
 .setup-header h1 {
   font-size: 28px;
-  margin: 0 0 10px 0;
+  margin: 0 0 10px;
   color: white;
 }
 
@@ -109,7 +109,7 @@
 }
 
 .status-info h3 {
-  margin: 0 0 5px 0;
+  margin: 0 0 5px;
   font-size: 16px;
   color: white;
 }
@@ -145,7 +145,7 @@
 
 .setup-button.primary:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 10px 20px var(--shadow));
+  box-shadow: 0 10px 20px var(--shadow);
 }
 
 .setup-button.secondary {
@@ -172,7 +172,7 @@
 }
 
 .setup-instructions h3 {
-  margin: 0 0 15px 0;
+  margin: 0 0 15px;
   color: #f44c04;
   font-size: 18px;
 }
@@ -302,6 +302,7 @@
   0% {
     transform: rotate(0deg);
   }
+
   100% {
     transform: rotate(360deg);
   }

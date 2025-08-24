@@ -2,7 +2,7 @@ import json
 import os
 import logging
 import hashlib
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +106,7 @@ class ConfigManager:
                 result[key] = value
         return result
 
-    def save_config(self, config: Dict[str, Any] = None) -> bool:
+    def save_config(self, config: Optional[Dict[str, Any]] = None) -> bool:
         """Save configuration to file"""
         try:
             config_to_save = config if config is not None else self.config

@@ -10,7 +10,7 @@
 
 .loading-spinner {
   border-radius: 50%;
-  border: 3px solid var(--border));
+  border: 3px solid var(--border);
   border-top-color: var(--accent);
   animation: spin 1s linear infinite;
   aspect-ratio: 1 / 1;

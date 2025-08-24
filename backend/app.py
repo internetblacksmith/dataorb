@@ -14,10 +14,12 @@ logger = logging.getLogger(__name__)
 
 # Configure Flask to serve React build files and use templates
 # Don't use static_url_path="" as it interferes with routing
-app = Flask(__name__, 
-            static_folder="../frontend/build", 
-            static_url_path="/static-files",
-            template_folder="templates")
+app = Flask(
+    __name__,
+    static_folder="../frontend/build",
+    static_url_path="/static-files",
+    template_folder="templates",
+)
 
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 
@@ -1016,36 +1018,38 @@ def serve_react_app(path):
     config = config_manager.get_config()
     display_config = config.get("display", {})
     theme_id = display_config.get("theme", "dark")
-    
+
     # Get theme data
     theme_data = None
     if theme_id and theme_id not in ["dark", "light"]:
         theme_data = theme_manager.get_theme(theme_id)
-    
+
     # Find the actual build files (they have hashes in the names)
     js_files = []
     css_files = []
-    
+
     static_js_path = os.path.join(app.static_folder, "static", "js")
     static_css_path = os.path.join(app.static_folder, "static", "css")
-    
+
     if os.path.exists(static_js_path):
         for file in os.listdir(static_js_path):
             if file.startswith("main.") and file.endswith(".js") and not file.endswith(".map"):
                 js_files.append(file)
-                
+
     if os.path.exists(static_css_path):
         for file in os.listdir(static_css_path):
             if file.startswith("main.") and file.endswith(".css") and not file.endswith(".map"):
                 css_files.append(file)
-    
+
     # For all routes (including /config, /setup), serve index.html with embedded data
     # This allows React Router to handle client-side routing
-    return render_template("index.html", 
-                         theme_data=theme_data,
-                         display_config=display_config,
-                         js_files=js_files,
-                         css_files=css_files)
+    return render_template(
+        "index.html",
+        theme_data=theme_data,
+        display_config=display_config,
+        js_files=js_files,
+        css_files=css_files,
+    )
 
 
 if __name__ == "__main__":

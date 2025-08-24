@@ -124,8 +124,8 @@ install-all: install-frontend install-backend ## Install all dependencies
 	@echo -e "$(GREEN)✓ All dependencies installed$(NC)"
 
 .PHONY: build-all
-build-all: build-frontend ## Build all components
-	@echo -e "$(GREEN)✓ All components built$(NC)"
+build-all: build-frontend build-backend ## Build all components (with linting)
+	@echo -e "$(GREEN)✓ All components built and verified$(NC)"
 
 # =============================================================================
 # Frontend Targets
@@ -148,7 +148,7 @@ install-frontend: ## Install frontend dependencies
 	@echo "  ✓ Frontend dependencies installed"
 
 .PHONY: build-frontend
-build-frontend: ## Build frontend with memory constraints for Pi
+build-frontend: lint-frontend ## Build frontend with memory constraints for Pi (runs linting first)
 	@echo -e "$(YELLOW)Building frontend with NODE_OPTIONS=--max-old-space-size=$(NODE_MEM)$(NC)"
 	@cd frontend && \
 		NODE_OPTIONS="--max-old-space-size=$(NODE_MEM)" \
@@ -172,16 +172,17 @@ dev-frontend: ## Run frontend in development mode with file watching
 # =============================================================================
 
 .PHONY: backend
-backend: clean-backend install-backend ## Clean rebuild of backend only
-	@echo -e "$(GREEN)✓ Backend rebuild complete$(NC)"
+backend: clean-backend install-backend build-backend ## Clean rebuild of backend only (with linting)
+	@echo -e "$(GREEN)✓ Backend rebuild and verification complete$(NC)"
 
 .PHONY: clean-backend
 clean-backend: ## Clean backend virtual environment and cache
 	@echo -e "$(YELLOW)Cleaning backend...$(NC)"
-	@cd backend && rm -rf venv __pycache__ *.pyc
+	@cd backend && rm -rf venv __pycache__ *.pyc .mypy_cache
 	@find backend -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+	@find backend -type d -name ".mypy_cache" -exec rm -rf {} + 2>/dev/null || true
 	@find backend -name "*.pyc" -delete 2>/dev/null || true
-	@echo "  ✓ Removed venv and Python cache"
+	@echo "  ✓ Removed venv, Python cache, and mypy cache"
 
 .PHONY: install-backend
 install-backend: ## Install backend dependencies in virtual environment
@@ -189,7 +190,16 @@ install-backend: ## Install backend dependencies in virtual environment
 	@cd backend && $(PYTHON) -m venv venv
 	@cd backend && . venv/bin/activate && pip install --upgrade pip
 	@cd backend && . venv/bin/activate && pip install -r requirements.txt
+	@if [ -f "backend/requirements-dev.txt" ]; then \
+		cd backend && . venv/bin/activate && pip install -r requirements-dev.txt; \
+		echo "  ✓ Backend dev dependencies installed"; \
+	fi
 	@echo "  ✓ Backend dependencies installed"
+
+.PHONY: build-backend
+build-backend: lint-backend ## Verify backend code quality (runs linting)
+	@echo -e "$(YELLOW)Checking backend code quality...$(NC)"
+	@echo -e "$(GREEN)  ✓ Backend code quality verified$(NC)"
 
 .PHONY: dev-backend
 dev-backend: ## Run backend in development mode with auto-reload
@@ -269,17 +279,42 @@ test-backend: ## Run backend tests
 lint: lint-frontend lint-backend ## Run linting on frontend and backend
 
 .PHONY: lint-frontend
-lint-frontend: ## Run ESLint on frontend
-	@echo -e "$(YELLOW)Linting frontend...$(NC)"
-	@cd frontend && npm run lint
+lint-frontend: ## Run ESLint and stylelint on frontend
+	@echo -e "$(YELLOW)Linting frontend code...$(NC)"
+	@echo "  Running ESLint (JavaScript/TypeScript)..."
+	@cd frontend && npm run lint || \
+		(echo -e "$(RED)  ✗ ESLint found issues$(NC)" && exit 1)
+	@echo "  Running stylelint (CSS)..."
+	@cd frontend && npm run lint:css || \
+		(echo -e "$(RED)  ✗ stylelint found issues. Run 'make lint-css-fix' to auto-fix.$(NC)" && exit 1)
+	@echo -e "$(GREEN)  ✓ Frontend linting passed$(NC)"
+
+.PHONY: lint-css
+lint-css: ## Run stylelint on CSS files only
+	@echo -e "$(YELLOW)Linting CSS files...$(NC)"
+	@cd frontend && npm run lint:css
+
+.PHONY: lint-css-fix
+lint-css-fix: ## Auto-fix CSS linting issues
+	@echo -e "$(YELLOW)Auto-fixing CSS issues...$(NC)"
+	@cd frontend && npm run lint:css:fix
 
 .PHONY: lint-backend
-lint-backend: ## Run flake8 and black on backend
-	@echo -e "$(YELLOW)Linting backend...$(NC)"
+lint-backend: ## Run flake8, black, and mypy on backend
+	@echo -e "$(YELLOW)Linting backend Python code...$(NC)"
+	@echo "  Running flake8..."
 	@cd backend && . venv/bin/activate && \
-		flake8 app.py config_manager.py ota_manager.py themes.py --max-line-length=100
+		flake8 app.py config_manager.py ota_manager.py themes.py --max-line-length=100 --extend-ignore=E203,W503 || \
+		(echo -e "$(RED)  ✗ flake8 found issues$(NC)" && exit 1)
+	@echo "  Running black..."
 	@cd backend && . venv/bin/activate && \
-		black --check app.py config_manager.py ota_manager.py themes.py --line-length=100
+		black --check app.py config_manager.py ota_manager.py themes.py --line-length=100 --no-cache || \
+		(echo -e "$(RED)  ✗ black found formatting issues. Run 'make format-backend' to fix.$(NC)" && exit 1)
+	@echo "  Running mypy..."
+	@cd backend && . venv/bin/activate && \
+		mypy app.py config_manager.py ota_manager.py themes.py --ignore-missing-imports || \
+		(echo -e "$(RED)  ✗ mypy found type issues$(NC)" && exit 1)
+	@echo -e "$(GREEN)  ✓ Backend linting passed$(NC)"
 
 .PHONY: format
 format: format-frontend format-backend ## Auto-format all code
@@ -293,7 +328,7 @@ format-frontend: ## Auto-format frontend code with Prettier
 format-backend: ## Auto-format backend code with Black
 	@echo -e "$(YELLOW)Formatting backend...$(NC)"
 	@cd backend && . venv/bin/activate && \
-		black app.py config_manager.py ota_manager.py themes.py --line-length=100
+		black app.py config_manager.py ota_manager.py themes.py --line-length=100 --no-cache
 
 # =============================================================================
 # Status and Monitoring

@@ -282,7 +282,7 @@ class OTAManager:
         except Exception as e:
             return {"error": str(e), "success": False}
 
-    def list_backups(self) -> Dict[str, List[Dict[str, Any]]]:
+    def list_backups(self) -> Dict[str, Any]:
         """List available backups"""
         try:
             backups = []
@@ -349,7 +349,7 @@ class OTAManager:
 
             # Update crontab
             boot_script = os.path.join(self.repo_path, "scripts", "boot-update.py")
-            cron_cmd = f'{schedule} cd {self.repo_path} && /usr/bin/python3 {boot_script}'
+            cron_cmd = f"{schedule} cd {self.repo_path} && /usr/bin/python3 {boot_script}"
 
             # Get current crontab
             try:
@@ -443,7 +443,7 @@ class OTAManager:
         except Exception as e:
             return {"error": str(e), "logs": []}
 
-    def _run_command(self, cmd: List[str], cwd: str = None) -> str:
+    def _run_command(self, cmd: List[str], cwd: Optional[str] = None) -> str:
         """Run a shell command and return output"""
         result = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, check=True)
         return result.stdout

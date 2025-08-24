@@ -60,9 +60,8 @@
 .metric-value {
   font-size: 1.8em;
   font-weight: bold;
-  background: var(--stat-value));
+  background: var(--stat-value);
   background-clip: text;
-  -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   line-height: 1;
   margin: 4px 0;
