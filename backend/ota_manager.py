@@ -33,7 +33,7 @@ class OTAManager:
             status_output = self._run_command(["git", "status", "--porcelain"], cwd=self.repo_path)
             has_changes = bool(status_output.strip())
 
-        except Exception as e:
+        except Exception:
             current_branch = "unknown"
             current_commit = "unknown"
             has_changes = False
@@ -348,7 +348,8 @@ class OTAManager:
             self.config_manager.update_ota_config({"update_schedule": schedule})
 
             # Update crontab
-            cron_cmd = f'{schedule} cd {self.repo_path} && /usr/bin/python3 {os.path.join(self.repo_path, "scripts", "boot-update.py")}'
+            boot_script = os.path.join(self.repo_path, "scripts", "boot-update.py")
+            cron_cmd = f'{schedule} cd {self.repo_path} && /usr/bin/python3 {boot_script}'
 
             # Get current crontab
             try:

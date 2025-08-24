@@ -14,11 +14,19 @@ export const useTheme = (themeId?: string) => {
     }
 
     try {
-      // Fetch custom theme
-      const response = await fetch(API_ENDPOINTS.THEME_BY_ID(id));
-      if (!response.ok) return;
-
-      const themeData: Theme = await response.json();
+      let themeData: Theme;
+      
+      // Check for embedded theme data first
+      if ((window as any).__INITIAL_DATA__?.theme) {
+        themeData = (window as any).__INITIAL_DATA__.theme;
+        // Clear the initial theme data after using it
+        delete (window as any).__INITIAL_DATA__.theme;
+      } else {
+        // Fetch custom theme if not embedded
+        const response = await fetch(API_ENDPOINTS.THEME_BY_ID(id));
+        if (!response.ok) return;
+        themeData = await response.json();
+      }
       const root = document.documentElement;
 
       // Map theme colors to CSS variables if colors exist

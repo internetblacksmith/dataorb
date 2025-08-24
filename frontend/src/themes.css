@@ -1,21 +1,23 @@
 /* CSS Variables for theming */
+/* Note: These variables are set by the Flask template to prevent color flash */
+/* The values here are only used as a last resort fallback */
 :root {
-  /* Default dark theme */
-  --bg-gradient: linear-gradient(135deg, #444444 0%, #2a2a2a 100%);
-  --container-bg: radial-gradient(circle, #444444 0%, #2a2a2a 100%);
+  /* Neutral fallback theme - no orange to prevent flash */
+  --bg-gradient: linear-gradient(135deg, #1a1a1a 0%, #0a0a0a 100%);
+  --container-bg: radial-gradient(circle, #1a1a1a 0%, #0a0a0a 100%);
   --text: #ffffff;
-  --text-secondary: #b4b4b4;
-  --accent: #f44c04;
-  --accent-secondary: #6e8cf9;
-  --border: rgba(244, 76, 4, 0.5);
-  --shadow: rgba(244, 76, 4, 0.3);
-  --stat-bg: linear-gradient(135deg, rgba(244, 76, 4, 0.2) 0%, rgba(110, 140, 249, 0.2) 100%);
-  --stat-border: rgba(244, 76, 4, 0.4);
-  --stat-value: linear-gradient(135deg, #f44c04 0%, #6e8cf9 100%);
-  --stat-label: #b4b4b4;
-  --status-dot: #10b981;
-  --glow-primary: rgba(244, 76, 4, 0.5);
-  --glow-secondary: rgba(110, 140, 249, 0.1);
+  --text-secondary: #888888;
+  --accent: #4a5568;
+  --accent-secondary: #718096;
+  --border: rgba(74, 85, 104, 0.5);
+  --shadow: rgba(74, 85, 104, 0.3);
+  --stat-bg: linear-gradient(135deg, rgba(74, 85, 104, 0.2) 0%, rgba(113, 128, 150, 0.2) 100%);
+  --stat-border: rgba(74, 85, 104, 0.4);
+  --stat-value: linear-gradient(135deg, #4a5568 0%, #718096 100%);
+  --stat-label: #888888;
+  --status-dot: #48bb78;
+  --glow-primary: rgba(74, 85, 104, 0.5);
+  --glow-secondary: rgba(113, 128, 150, 0.1);
 }
 
 /* Apply CSS variables to elements */

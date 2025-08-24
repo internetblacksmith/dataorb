@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, send_from_directory, request
+from flask import Flask, jsonify, send_from_directory, request, render_template
 from flask_cors import CORS
 import requests
 import os
@@ -12,9 +12,12 @@ from themes import ThemeManager
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Configure Flask to serve React build files
+# Configure Flask to serve React build files and use templates
 # Don't use static_url_path="" as it interferes with routing
-app = Flask(__name__, static_folder="../frontend/build", static_url_path="/static-files")
+app = Flask(__name__, 
+            static_folder="../frontend/build", 
+            static_url_path="/static-files",
+            template_folder="templates")
 
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 
@@ -528,10 +531,6 @@ def get_stats():
 
         # Determine which metrics to include based on layout
         if layout:
-            # Get the metrics configuration for the specified layout
-            config = config_manager.get_config()
-            layout_metrics = config.get("display", {}).get("metrics", {}).get(layout, {})
-
             # For backwards compatibility with old endpoints
             # Simply return all metrics with recent events
             response_data = {
@@ -559,19 +558,17 @@ def health_check():
     """Health check endpoint"""
     # Check if we're in AP mode - but only if no network connection exists
     ap_mode = False
-    
+
     # Check for active network connection (ethernet or wifi)
     import subprocess
+
     try:
         # Check if we have any active network connection with internet access
         result = subprocess.run(
-            ["ping", "-c", "1", "-W", "1", "8.8.8.8"],
-            capture_output=True,
-            text=True,
-            timeout=2
+            ["ping", "-c", "1", "-W", "1", "8.8.8.8"], capture_output=True, text=True, timeout=2
         )
         has_internet = result.returncode == 0
-        
+
         # Only consider AP mode if no internet and the marker file exists
         if not has_internet and os.path.exists("/tmp/wifi_ap_mode"):
             ap_mode = True
@@ -602,7 +599,7 @@ def network_status():
             ["ping", "-c", "1", "-W", "2", "8.8.8.8"], capture_output=True, timeout=3
         )
         has_network = result.returncode == 0
-        
+
         # Check if ethernet is connected
         eth_result = subprocess.run(
             ["ip", "link", "show", "eth0"], capture_output=True, text=True, timeout=2
@@ -852,6 +849,17 @@ def update_config():
     return jsonify({"success": True})
 
 
+@app.route("/api/config/version")
+def get_config_version():
+    """Get config version hash for change detection"""
+    return jsonify(
+        {
+            "version": config_manager.get_config_hash(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+    )
+
+
 @app.route("/api/admin/config/validate/posthog", methods=["POST"])
 def validate_posthog_config():
     """Validate PostHog configuration"""
@@ -999,14 +1007,45 @@ def serve_layout_preview(filename):
 @app.route("/", defaults={"path": ""})
 @app.route("/<path:path>")
 def serve_react_app(path):
-    """Serve the React application for all non-API routes"""
+    """Serve the React application for all non-API routes with embedded theme data"""
     # Don't serve API routes
     if path.startswith("api/"):
         return jsonify({"error": "Not found"}), 404
 
-    # For all routes (including /config, /setup), serve index.html
+    # Get current display config and theme
+    config = config_manager.get_config()
+    display_config = config.get("display", {})
+    theme_id = display_config.get("theme", "dark")
+    
+    # Get theme data
+    theme_data = None
+    if theme_id and theme_id not in ["dark", "light"]:
+        theme_data = theme_manager.get_theme(theme_id)
+    
+    # Find the actual build files (they have hashes in the names)
+    js_files = []
+    css_files = []
+    
+    static_js_path = os.path.join(app.static_folder, "static", "js")
+    static_css_path = os.path.join(app.static_folder, "static", "css")
+    
+    if os.path.exists(static_js_path):
+        for file in os.listdir(static_js_path):
+            if file.startswith("main.") and file.endswith(".js") and not file.endswith(".map"):
+                js_files.append(file)
+                
+    if os.path.exists(static_css_path):
+        for file in os.listdir(static_css_path):
+            if file.startswith("main.") and file.endswith(".css") and not file.endswith(".map"):
+                css_files.append(file)
+    
+    # For all routes (including /config, /setup), serve index.html with embedded data
     # This allows React Router to handle client-side routing
-    return send_from_directory(app.static_folder, "index.html")
+    return render_template("index.html", 
+                         theme_data=theme_data,
+                         display_config=display_config,
+                         js_files=js_files,
+                         css_files=css_files)
 
 
 if __name__ == "__main__":
@@ -1022,7 +1061,7 @@ if __name__ == "__main__":
 
     # Check if we're in debug mode
     debug_mode = os.environ.get("FLASK_DEBUG", "0") == "1"
-    
+
     # In debug mode, use port 5000. In production, try port 80 first
     if debug_mode:
         port = 5000
@@ -1037,4 +1076,3 @@ if __name__ == "__main__":
             logger.warning("Cannot bind to port 80, falling back to port 5000")
             port = 5000
             app.run(host="0.0.0.0", port=port, debug=False)
-

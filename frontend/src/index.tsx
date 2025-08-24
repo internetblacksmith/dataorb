@@ -10,6 +10,7 @@ import DashboardExecutive from './components/DashboardExecutive';
 import DashboardRouter from './components/DashboardRouter';
 import ConfigPage from './components/ConfigPage';
 import SetupPage from './components/SetupPage';
+import ConfigWatcher from './components/ConfigWatcher';
 
 const root = ReactDOM.createRoot(
   document.getElementById('root') as HTMLElement,
@@ -18,6 +19,7 @@ const root = ReactDOM.createRoot(
 root.render(
   <React.StrictMode>
     <BrowserRouter>
+      <ConfigWatcher />
       <Routes>
         <Route path="/" element={<DashboardRouter />} />
         <Route path="/classic" element={<DashboardClassic />} />

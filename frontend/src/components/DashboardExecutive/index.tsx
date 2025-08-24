@@ -24,6 +24,10 @@ const DashboardExecutive: React.FC = () => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [themeData, setThemeData] = useState<Theme | null>(null);
   
+  // Check for loading parameter in URL
+  const urlParams = new URLSearchParams(window.location.search);
+  const forceLoading = urlParams.get('loading') === 'true';
+  
   // Custom hooks
   useKeyboardNavigation();
   const { networkStatus, error: networkError } = useNetworkStatus();
@@ -50,6 +54,14 @@ const DashboardExecutive: React.FC = () => {
 
   // Load theme data for logo
   React.useEffect(() => {
+    // Check for embedded theme data first
+    if ((window as any).__INITIAL_DATA__?.theme) {
+      setThemeData((window as any).__INITIAL_DATA__.theme);
+      // Clear the initial data after using it
+      delete (window as any).__INITIAL_DATA__.theme;
+      return;
+    }
+    
     const loadThemeData = async () => {
       if (!theme || ['dark', 'light'].includes(theme)) {
         setThemeData(null);
@@ -148,8 +160,8 @@ const DashboardExecutive: React.FC = () => {
     );
   }
 
-  // Loading state
-  if (loading) {
+  // Loading state (or forced loading for testing)
+  if (loading || forceLoading) {
     return (
       <div className="dashboard-executive">
         <div className="loading-orb">

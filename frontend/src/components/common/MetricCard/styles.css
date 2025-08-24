@@ -60,7 +60,7 @@
 .metric-value {
   font-size: 1.8em;
   font-weight: bold;
-  background: var(--stat-value, linear-gradient(135deg, #f44c04 0%, #6e8cf9 100%));
+  background: var(--stat-value));
   background-clip: text;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -78,7 +78,7 @@
 
 .metric-label {
   font-size: 0.75em;
-  color: var(--stat-label, #8892a0);
+  color: var(--stat-label);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-top: 4px;
@@ -105,7 +105,7 @@
 }
 
 .metric-trend.neutral {
-  color: var(--text-secondary, #94a3b8);
+  color: var(--text-secondary);
 }
 
 .trend-icon {

@@ -43,7 +43,7 @@ export const DisplayConfig: React.FC<DisplayConfigProps> = React.memo(({
     onChange({
       display: {
         ...config.display,
-        refresh_interval: value * 1000, // Convert to milliseconds
+        refresh_interval: value, // Already in milliseconds
       },
     });
   };
@@ -161,17 +161,23 @@ export const DisplayConfig: React.FC<DisplayConfigProps> = React.memo(({
       {/* Refresh Interval */}
       <div className="form-group">
         <label htmlFor="refresh-interval">
-          Refresh Interval: {(config.display?.refresh_interval || 30000) / 1000}s
+          Data Refresh Interval
         </label>
-        <input
+        <select
           id="refresh-interval"
-          type="range"
-          min="10"
-          max="300"
-          step="10"
-          value={(config.display?.refresh_interval || 30000) / 1000}
+          value={config.display?.refresh_interval || 30000}
           onChange={(e) => handleRefreshIntervalChange(Number(e.target.value))}
-        />
+        >
+          <option value={30000}>30 seconds</option>
+          <option value={60000}>1 minute</option>
+          <option value={300000}>5 minutes</option>
+          <option value={600000}>10 minutes</option>
+          <option value={1800000}>30 minutes</option>
+          <option value={3600000}>1 hour</option>
+          <option value={7200000}>2 hours</option>
+          <option value={14400000}>4 hours</option>
+        </select>
+        <small>How often to fetch new data from PostHog</small>
       </div>
 
       {/* Screensaver Timeout */}

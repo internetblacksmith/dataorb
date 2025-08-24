@@ -17,6 +17,10 @@ import '../../themes.css';
 const DashboardClassic: React.FC = () => {
   const [currentTime, setCurrentTime] = useState(new Date());
 
+  // Check for loading parameter in URL
+  const urlParams = new URLSearchParams(window.location.search);
+  const forceLoading = urlParams.get('loading') === 'true';
+
   // Custom hooks
   useKeyboardNavigation();
   const { networkStatus, error: networkError } = useNetworkStatus();
@@ -65,8 +69,8 @@ const DashboardClassic: React.FC = () => {
     );
   }
 
-  // Loading state
-  if (loading) {
+  // Loading state (or forced loading for testing)
+  if (loading || forceLoading) {
     return (
       <div className="dashboard-classic">
         <div className="circular-container">

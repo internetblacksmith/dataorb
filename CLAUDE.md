@@ -437,55 +437,56 @@ Use Claude Code to review if documentation needs updates based on your changes. 
 
 ## Common Development Commands
 
-### Development Mode (File Watching)
+### Using the Makefile (Recommended)
+
+The project includes a comprehensive Makefile for all operations:
+
+```bash
+# Interactive menu (default)
+make              # Shows numbered menu with all options
+
+# Direct commands
+make rebuild      # Complete clean + install + build
+make frontend     # Rebuild frontend only (with memory limits for Pi)
+make backend      # Rebuild backend only
+make restart      # Restart all services
+make status       # Check all services and components
+make logs         # View recent logs
+make logs-follow  # Follow logs in real-time
+make lint         # Run linting checks
+make format       # Auto-format code
+make clean        # Clean all dependencies and builds
+
+# Development
+make dev          # Instructions for dev mode
+make dev-frontend # Start frontend dev server
+make dev-backend  # Start backend dev server
+
+# Deployment
+make deploy PI_HOST=192.168.1.154 PI_USER=pianalytics
+```
+
+#### Memory-Safe Builds
+The Makefile automatically handles memory constraints on Pi:
+- Sets `NODE_OPTIONS="--max-old-space-size=512"` for frontend builds
+- Disables source maps to save memory
+- Cleans old builds before rebuilding
+
+### Manual Development Mode
 ```bash
 # Start both React file watcher and Flask dev server
 python3 dev.py
 ```
-This automatically:
-- Builds React and watches for file changes
-- Starts Flask in debug mode with auto-reload
-- Rebuilds React when you edit files
-- Restarts Flask when you edit Python files
-
-### Production Build
-```bash
-# Build and run everything
-./build.sh
-cd backend
-source venv/bin/activate
-python3 app.py  # Serves both API and React on port 5000
-```
-
-### Quick Production Run
-```bash
-# Auto-build and run
-python3 run.py
-```
-
-### Manual Development Steps
-```bash
-# Build frontend with file watching
-cd frontend
-npm run dev  # Builds and watches for changes
-
-# In another terminal - run Flask dev server
-cd backend
-source venv/bin/activate
-FLASK_DEBUG=1 python3 app.py
-```
 
 ### Testing
 ```bash
-# Health check
+# Use Makefile
+make test         # Run all tests
+make status       # Check service health
+
+# Manual testing
 curl http://localhost:5000/api/health
-
-# Visit complete app
-open http://localhost:5000
-
-# Test OTA updates
-curl http://localhost:5000/api/admin/ota/status
-curl http://localhost:5000/api/admin/ota/check
+curl http://localhost:5000/api/config/version
 ```
 
 ## Key Configuration Files
@@ -648,6 +649,7 @@ The project evolved through these key phases:
 
 - **Circular Dashboard**: PostHog analytics optimized for round display
 - **Real-time Updates**: 30-second refresh with 5-minute API caching
+- **Auto Config Reload**: Dashboard automatically refreshes when settings change
 - **Web Configuration**: Hidden admin interface at `/config` or `Ctrl+Shift+C`
 - **WiFi Setup**: Automatic access point mode for first-boot configuration
 - **Kiosk Mode**: Auto-start Chrome in fullscreen on boot
@@ -656,3 +658,10 @@ The project evolved through these key phases:
 - **Automatic Backups**: Rollback capability for failed updates
 - **Boot-time Updates**: Automatic update checks on system boot
 - **One-click Installation**: Complete setup script for fresh Raspberry Pi
+
+### Automatic Config Reload Feature
+- Frontend polls `/api/config/version` every 5 seconds
+- Backend calculates SHA256 hash of configuration
+- When hash changes, dashboard automatically reloads
+- No manual refresh needed after changing settings
+- Works for all config changes: layout, metrics, themes, display settings

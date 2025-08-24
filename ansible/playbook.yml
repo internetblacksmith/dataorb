@@ -26,7 +26,7 @@
 
 - name: Install DataOrb Analytics Dashboard on Raspberry Pi Zero W
   hosts: pi
-  become: yes  # Run with sudo privileges
+  become: true  # Run with sudo privileges
   vars:
     app_dir: /home/{{ ansible_user }}/pi-analytics-dashboard  # Where to install the app
     display_type: hyperpixel_round  # Display configuration: 'hyperpixel_round' or 'none'
@@ -112,7 +112,7 @@
           The 800x800 resolution requires more resources than Pi Zero W can comfortably provide.
           Consider using Pi Zero 2W or newer for Waveshare display.
         success_msg: "✓ Configuration compatibility check passed"
-      ignore_errors: yes  # This is a warning, not a hard failure
+      ignore_errors: true  # This is a warning, not a hard failure
       tags: ['always', 'validation']
     
     - name: Display validated configuration
@@ -152,10 +152,25 @@
       when: ansible_become_method | default('sudo') == 'sudo'
       tags: ['always', 'validation']
     
+    - name: Check network connectivity
+      wait_for:
+        host: 8.8.8.8
+        port: 53
+        timeout: 30
+      retries: 3
+      delay: 5
+      register: network_check
+      ignore_errors: true
+      tags: ['system', 'packages']
+    
     - name: Update package cache (force refresh)
       apt:
         update_cache: yes
         cache_valid_time: 0  # Force refresh to avoid 404 errors
+      retries: 3
+      delay: 10
+      register: apt_update
+      until: apt_update is succeeded
       tags: ['system', 'packages']
     
     - name: Install system dependencies
@@ -279,7 +294,7 @@
       command: raspi-config nonint get_gldriver
       register: gl_driver_available
       when: display_type == 'hyperpixel_round'
-      ignore_errors: yes
+      ignore_errors: true
       changed_when: false
       tags: ['display', 'critical']
     
@@ -291,20 +306,20 @@
         - gl_driver_available.rc == 0
       register: gl_driver_result
       changed_when: gl_driver_result.rc == 0
-      ignore_errors: yes
+      ignore_errors: true
       tags: ['display', 'critical']
 
     - name: Enable I2C interface (before HyperPixel install)
       command: raspi-config nonint do_i2c 0
       when: display_type == 'hyperpixel_round'
-      ignore_errors: yes
+      ignore_errors: true
       changed_when: false
       tags: ['display']
     
     - name: Enable SPI interface (before HyperPixel install)
       command: raspi-config nonint do_spi 0
       when: display_type == 'hyperpixel_round'
-      ignore_errors: yes
+      ignore_errors: true
       changed_when: false
       tags: ['display']
 
@@ -398,7 +413,7 @@
         - display_type == 'hyperpixel_round'
         - hyperpixel_repo is succeeded
       register: hyperpixel_install
-      become: yes
+      become: true
       tags: ['display', 'hyperpixel']
     
     - name: Verify HyperPixel installation components
@@ -468,7 +483,7 @@
       when: 
         - display_type == 'hyperpixel_round'
         - cmdline_path is defined
-      ignore_errors: yes
+      ignore_errors: true
       tags: ['display']
     
     - name: Add console=tty1 to cmdline if not present
@@ -757,7 +772,7 @@
         - apt-daily.service
         - apt-daily-upgrade.service
         - man-db.service
-      ignore_errors: yes
+      ignore_errors: true
       tags: ['boot', 'optimize']
     
     # ============================================
@@ -941,7 +956,7 @@
                   - nodejs
                   - npm
                 state: absent
-              ignore_errors: yes
+              ignore_errors: true
               tags: ['app', 'nodejs']
             
             - name: Download Node.js 16 for ARMv6
@@ -979,16 +994,28 @@
                 - node
                 - npm
                 - npx
-              ignore_errors: yes
+              ignore_errors: true
               tags: ['app', 'nodejs']
+        
+        - name: Wait for network connectivity
+          wait_for:
+            host: raspbian.raspberrypi.org
+            port: 80
+            timeout: 60
+          retries: 3
+          delay: 10
+          ignore_errors: true
+          tags: ['app', 'nodejs']
         
         - name: Install Node.js for ARMv7+ (Pi Zero 2W, Pi 3/4/5)
           when: not is_armv6
           shell: |
-            curl -fsSL https://deb.nodesource.com/setup_16.x | bash -
+            curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
             apt-get install -y nodejs
           environment:
             DEBIAN_FRONTEND: noninteractive
+          retries: 3
+          delay: 10
           tags: ['app', 'nodejs']
       when: current_node_version.rc != 0 or current_node_version.stdout is version('v14.0.0', '<')
     
@@ -1252,7 +1279,7 @@
         name: rc-local
         enabled: yes
       when: display_type in ['hyperpixel_round', 'waveshare_34_hdmi']
-      ignore_errors: yes
+      ignore_errors: true
       tags: ['services', 'kiosk']
     
     - name: Create X11 config directory
@@ -1396,30 +1423,7 @@
       when: display_type in ['hyperpixel_round', 'waveshare_34_hdmi']
       tags: ['services', 'kiosk']
     
-    - name: Create kiosk start script
-      template:
-        src: templates/start-kiosk.sh.j2
-        dest: "{{ app_dir }}/start-kiosk.sh"
-        mode: '0755'
-        owner: "{{ ansible_user }}"
-        group: "{{ ansible_user }}"
-      when: display_type in ['hyperpixel_round', 'waveshare_34_hdmi']
-      tags: ['services', 'kiosk']
     
-    - name: Verify kiosk script was created
-      stat:
-        path: "{{ app_dir }}/start-kiosk.sh"
-      register: kiosk_script_check
-      when: display_type in ['hyperpixel_round', 'waveshare_34_hdmi']
-      tags: ['services', 'kiosk']
-    
-    - name: Display kiosk script status
-      debug:
-        msg: "Kiosk script created successfully at {{ app_dir }}/start-kiosk.sh"
-      when: 
-        - display_type in ['hyperpixel_round', 'waveshare_34_hdmi']
-        - kiosk_script_check.stat.exists
-      tags: ['services', 'kiosk']
     
     - name: Configure auto-start in user's .bashrc
       # Alternative auto-start method via .bashrc
@@ -1455,7 +1459,7 @@
         state: stopped
         enabled: no
       when: nginx_status.stdout == 'running'
-      ignore_errors: yes
+      ignore_errors: true
       tags: ['services']
     
     - name: Reload systemd daemon
@@ -1602,7 +1606,7 @@
       loop:
         - hostapd.service    # We start this manually when needed
         - dnsmasq.service    # We start this manually when needed
-      ignore_errors: yes     # Services might not exist
+      ignore_errors: true     # Services might not exist
       tags: ['wifi', 'ap', 'services']
     
     # ============================================

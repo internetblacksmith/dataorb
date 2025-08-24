@@ -29,20 +29,20 @@
 
 .error-display h2 {
   font-size: 1.8em;
-  color: var(--accent, #f44c04);
+  color: var(--accent);
   margin-bottom: 15px;
 }
 
 .error-message {
   font-size: 1em;
-  color: var(--text-secondary, #94a3b8);
+  color: var(--text-secondary);
   margin-bottom: 25px;
   max-width: 400px;
   line-height: 1.5;
 }
 
 .retry-button {
-  background: var(--accent, #f44c04);
+  background: var(--accent);
   color: white;
   border: none;
   padding: 12px 28px;
@@ -65,7 +65,7 @@
   display: flex;
   align-items: center;
   gap: 20px;
-  background: var(--stat-bg, rgba(0, 0, 0, 0.3));
+  background: var(--stat-bg));
   padding: 15px;
   border-radius: 12px;
   margin-bottom: 12px;
@@ -73,7 +73,7 @@
 }
 
 .step-number {
-  background: var(--accent, #f44c04);
+  background: var(--accent);
   color: white;
   width: 32px;
   height: 32px;
@@ -87,12 +87,12 @@
 
 .setup-step p {
   font-size: 0.9em;
-  color: var(--text-secondary, #94a3b8);
+  color: var(--text-secondary);
   margin: 0 0 5px 0;
 }
 
 .setup-step strong {
-  color: var(--text, #ffffff);
+  color: var(--text);
   font-size: 1.1em;
   display: block;
 }

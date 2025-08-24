@@ -1,8 +1,8 @@
 /* Metric card styles for classic dashboard */
 .dashboard-classic .metric-card {
   border-radius: 50%;
-  background: var(--stat-bg, linear-gradient(135deg, rgba(244, 76, 4, 0.1) 0%, rgba(110, 140, 249, 0.1) 100%));
-  border: 1px solid var(--stat-border, rgba(244, 76, 4, 0.3));
+  background: var(--stat-bg) 0%, rgba(110, 140, 249, 0.1) 100%));
+  border: 1px solid var(--stat-border));
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -18,8 +18,8 @@
 .dashboard-classic {
   width: 480px;
   height: 480px;
-  background: var(--bg-gradient, linear-gradient(135deg, #444444 0%, #2a2a2a 100%));
-  color: var(--text, white);
+  background: var(--bg-gradient));
+  color: var(--text);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -28,7 +28,7 @@
   padding: 0;
   overflow: hidden;
   border-radius: 50%;
-  box-shadow: 0 0 100px rgba(0, 0, 0, 0.5), 0 0 200px var(--shadow, rgba(244, 76, 4, 0.2));
+  box-shadow: 0 0 100px rgba(0, 0, 0, 0.5), 0 0 200px var(--shadow));
 }
 
 /* Light theme */
@@ -46,12 +46,12 @@
   max-width: 460px;
   max-height: 460px;
   border-radius: 50%;
-  background: var(--container-bg, radial-gradient(circle, #444444 0%, #2a2a2a 100%));
+  background: var(--container-bg));
   box-shadow:
-    0 0 30px var(--shadow, rgba(244, 76, 4, 0.3)),
-    inset 0 0 30px var(--glow-secondary, rgba(110, 140, 249, 0.1));
+    0 0 30px var(--shadow)),
+    inset 0 0 30px var(--glow-secondary));
   overflow: hidden;
-  border: 2px solid var(--border, rgba(244, 76, 4, 0.5));
+  border: 2px solid var(--border));
   flex-shrink: 0;
   aspect-ratio: 1 / 1;
 }
@@ -76,17 +76,17 @@
 .dashboard-classic .logo-text {
   font-size: 2.5em;
   font-weight: bold;
-  background: linear-gradient(135deg, var(--accent, #f44c04) 0%, var(--accent-secondary, #6e8cf9) 100%);
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-secondary) 100%);
   background-clip: text;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   margin-bottom: 5px;
-  text-shadow: 0 0 20px var(--glow-primary, rgba(244, 76, 4, 0.5));
+  text-shadow: 0 0 20px var(--glow-primary));
 }
 
 .dashboard-classic .logo-subtitle {
   font-size: 1.2em;
-  color: var(--text-secondary, #b4b4b4);
+  color: var(--text-secondary);
   letter-spacing: 2px;
 }
 
@@ -109,13 +109,13 @@
     rgba(110, 140, 249, 0.2) 100%
   ));
   backdrop-filter: blur(10px);
-  border: 2px solid var(--stat-border, rgba(244, 76, 4, 0.4));
+  border: 2px solid var(--stat-border));
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
   text-align: center;
-  box-shadow: 0 4px 15px var(--shadow, rgba(244, 76, 4, 0.3));
+  box-shadow: 0 4px 15px var(--shadow));
   aspect-ratio: 1 / 1;
 }
 
@@ -150,7 +150,7 @@
 .dashboard-classic .stat-value {
   font-size: 1.8em;
   font-weight: bold;
-  background: var(--stat-value, linear-gradient(135deg, #f44c04 0%, #6e8cf9 100%));
+  background: var(--stat-value));
   background-clip: text;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -159,7 +159,7 @@
 
 .dashboard-classic .stat-label {
   font-size: 0.9em;
-  color: var(--stat-label, #b4b4b4);
+  color: var(--stat-label);
   text-transform: uppercase;
   letter-spacing: 1px;
 }
@@ -184,19 +184,19 @@
   align-items: center;
   gap: 8px;
   font-size: 0.9em;
-  color: var(--text-secondary, #ccc);
+  color: var(--text-secondary);
 }
 
 .dashboard-classic .status-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background-color: var(--status-dot, #ff6b6b);
+  background-color: var(--status-dot);
 }
 
 .dashboard-classic .status-dot.active {
-  background-color: var(--accent-secondary, #6e8cf9);
-  box-shadow: 0 0 10px var(--glow-secondary, #6e8cf9);
+  background-color: var(--accent-secondary);
+  box-shadow: 0 0 10px var(--glow-secondary);
   animation: pulse 2s infinite;
 }
 
@@ -214,7 +214,7 @@
 
 .dashboard-classic .last-updated {
   font-size: 0.8em;
-  color: var(--text-secondary, #888);
+  color: var(--text-secondary);
 }
 
 /* Loading State */
@@ -234,8 +234,8 @@
   width: 120px;
   height: 120px;
   border-radius: 50%;
-  border: 3px solid var(--border, rgba(244, 76, 4, 0.2));
-  border-top-color: var(--accent, #f44c04);
+  border: 3px solid var(--border));
+  border-top-color: var(--accent);
   animation: spin 1s linear infinite;
 }
 
@@ -246,14 +246,13 @@
   background: conic-gradient(
     from 0deg,
     transparent 0deg,
-    var(--accent, #f44c04) 60deg,
+    var(--accent) 60deg,
     transparent 120deg
   );
-  animation: rotate 2s linear infinite;
 }
 
 .dashboard-classic .loading-text {
-  color: var(--text, #ffffff);
+  color: var(--text);
   font-size: 1em;
   margin: 0;
   text-align: center;

@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <link rel="icon" href="/favicon.ico"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1"/>
+    <meta name="theme-color" content="#000000"/>
+    <meta name="description" content="DataOrb - Analytics Dashboard"/>
+    <title>DataOrb</title>
+    
+    <!-- Apply theme styles immediately to prevent flash -->
+    <style id="initial-theme-styles">
+        {% if theme_data and theme_data.colors %}
+        /* Custom theme - apply with !important to override defaults */
+        :root {
+            --bg-gradient: {{ theme_data.colors.background or theme_data.colors.accent or '#444444' }} !important;
+            --container-bg: {{ theme_data.colors.containerBg or 'radial-gradient(circle, #444444 0%, #2a2a2a 100%)' }} !important;
+            --text: {{ theme_data.colors.text or '#ffffff' }} !important;
+            --text-secondary: {{ theme_data.colors.textSecondary or '#b4b4b4' }} !important;
+            --accent: {{ theme_data.colors.accent or '#f44c04' }} !important;
+            --accent-secondary: {{ theme_data.colors.accentSecondary or '#6e8cf9' }} !important;
+            --border: {{ theme_data.colors.border or 'rgba(244, 76, 4, 0.5)' }} !important;
+            --shadow: {{ theme_data.colors.shadow or 'rgba(244, 76, 4, 0.3)' }} !important;
+            --stat-bg: {{ theme_data.colors.statBg or 'linear-gradient(135deg, rgba(244, 76, 4, 0.1) 0%, rgba(110, 140, 249, 0.1) 100%)' }} !important;
+            --stat-border: {{ theme_data.colors.statBorder or 'rgba(244, 76, 4, 0.3)' }} !important;
+            --stat-value: {{ theme_data.colors.statValue or 'linear-gradient(135deg, #f44c04 0%, #6e8cf9 100%)' }} !important;
+            --stat-label: {{ theme_data.colors.statLabel or '#b4b4b4' }} !important;
+            --glow-primary: {{ theme_data.colors.glowPrimary or 'rgba(244, 76, 4, 0.5)' }} !important;
+            --glow-secondary: {{ theme_data.colors.glowSecondary or 'rgba(110, 140, 249, 0.1)' }} !important;
+            --status-dot: {{ theme_data.colors.statusDot or '#ff6b6b' }} !important;
+            --trend-up: {{ theme_data.colors.trendUp or '#10b981' }} !important;
+            --trend-down: {{ theme_data.colors.trendDown or '#ef4444' }} !important;
+        }
+        {% elif display_config and display_config.theme == 'dark' %}
+        /* Explicitly dark theme - no orange */
+        :root {
+            --bg-gradient: linear-gradient(135deg, #444444 0%, #2a2a2a 100%) !important;
+            --container-bg: radial-gradient(circle, #444444 0%, #2a2a2a 100%) !important;
+            --text: #ffffff !important;
+            --text-secondary: #b4b4b4 !important;
+            --accent: #f44c04 !important;
+            --accent-secondary: #6e8cf9 !important;
+            --border: rgba(244, 76, 4, 0.5) !important;
+            --shadow: rgba(244, 76, 4, 0.3) !important;
+            --stat-bg: linear-gradient(135deg, rgba(244, 76, 4, 0.2) 0%, rgba(110, 140, 249, 0.2) 100%) !important;
+            --stat-border: rgba(244, 76, 4, 0.4) !important;
+            --stat-value: linear-gradient(135deg, #f44c04 0%, #6e8cf9 100%) !important;
+            --stat-label: #b4b4b4 !important;
+            --status-dot: #10b981 !important;
+            --glow-primary: rgba(244, 76, 4, 0.5) !important;
+            --glow-secondary: rgba(110, 140, 249, 0.1) !important;
+            --trend-up: #10b981 !important;
+            --trend-down: #ef4444 !important;
+        }
+        {% else %}
+        /* Default neutral theme to prevent any flash */
+        :root {
+            --bg-gradient: linear-gradient(135deg, #1a1a1a 0%, #0a0a0a 100%) !important;
+            --container-bg: radial-gradient(circle, #1a1a1a 0%, #0a0a0a 100%) !important;
+            --text: #ffffff !important;
+            --text-secondary: #888888 !important;
+            --accent: #4a5568 !important;
+            --accent-secondary: #718096 !important;
+            --border: rgba(74, 85, 104, 0.5) !important;
+            --shadow: rgba(74, 85, 104, 0.3) !important;
+            --stat-bg: linear-gradient(135deg, rgba(74, 85, 104, 0.1) 0%, rgba(113, 128, 150, 0.1) 100%) !important;
+            --stat-border: rgba(74, 85, 104, 0.3) !important;
+            --stat-value: linear-gradient(135deg, #4a5568 0%, #718096 100%) !important;
+            --stat-label: #888888 !important;
+            --glow-primary: rgba(74, 85, 104, 0.5) !important;
+            --glow-secondary: rgba(113, 128, 150, 0.1) !important;
+            --status-dot: #48bb78 !important;
+            --trend-up: #48bb78 !important;
+            --trend-down: #f56565 !important;
+        }
+        {% endif %}
+        
+        /* Apply background immediately to prevent flash */
+        html, body {
+            margin: 0;
+            padding: 0;
+            background: var(--bg-gradient) !important;
+            width: 100%;
+            height: 100%;
+        }
+        
+        /* Hide content until fully loaded to prevent any flash */
+        body {
+            opacity: 0;
+            transition: opacity 0.2s ease-in;
+        }
+        
+        body.loaded {
+            opacity: 1;
+        }
+    </style>
+    
+    <script>
+        // Show body once CSS is loaded
+        window.addEventListener('DOMContentLoaded', function() {
+            document.body.classList.add('loaded');
+        });
+    </script>
+    
+    <!-- Inject theme data before React loads -->
+    <script>
+        window.__INITIAL_DATA__ = {
+            theme: {{ theme_data | tojson | safe }},
+            displayConfig: {{ display_config | tojson | safe }}
+        };
+    </script>
+    
+    <!-- React build files (dynamically found) -->
+    {% for css_file in css_files %}
+    <link href="/static-files/static/css/{{ css_file }}" rel="stylesheet">
+    {% endfor %}
+    {% for js_file in js_files %}
+    <script defer="defer" src="/static-files/static/js/{{ js_file }}"></script>
+    {% endfor %}
+</head>
+<body>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <div id="root"></div>
+</body>
+</html>

@@ -1,6 +1,7 @@
 import json
 import os
 import logging
+import hashlib
 from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
@@ -141,6 +142,14 @@ class ConfigManager:
     def get_network_config(self) -> Dict[str, Any]:
         """Get network configuration"""
         return self.config.get("network", {})
+
+    def get_config_hash(self) -> str:
+        """Calculate hash of current configuration for change detection"""
+        # Create a stable string representation of config
+        # Sort keys to ensure consistent hashing
+        config_str = json.dumps(self.config, sort_keys=True)
+        # Return first 8 characters of SHA256 hash for brevity
+        return hashlib.sha256(config_str.encode()).hexdigest()[:8]
 
     def get_ota_config(self) -> Dict[str, Any]:
         """Get OTA configuration"""

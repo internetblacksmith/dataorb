@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import './styles.css';
 
 interface NetworkStatus {
@@ -32,11 +32,7 @@ const SetupPage: React.FC = () => {
 
   const API_BASE = process.env.REACT_APP_API_URL || '';
 
-  useEffect(() => {
-    fetchNetworkStatus();
-  }, []);
-
-  const fetchNetworkStatus = async () => {
+  const fetchNetworkStatus = useCallback(async () => {
     try {
       const response = await fetch(`${API_BASE}/api/network/status`);
       const data = await response.json();
@@ -48,7 +44,11 @@ const SetupPage: React.FC = () => {
     } catch (error) {
       // Error fetching network status
     }
-  };
+  }, [API_BASE]);
+
+  useEffect(() => {
+    fetchNetworkStatus();
+  }, [fetchNetworkStatus]);
 
   const scanNetworks = async () => {
     setLoading(true);
