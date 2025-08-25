@@ -17,7 +17,7 @@ check_network() {
 # Function to check if we have any network interface with IP
 check_any_network() {
     # Check if eth0 has an IP (not localhost)
-    if ip addr show eth0 2>/dev/null | grep -q "inet " | grep -v "127.0.0.1"; then
+    if ip addr show eth0 2>/dev/null | grep "inet " | grep -v "127.0.0.1" | grep -q "inet "; then
         return 0
     fi
     
@@ -32,6 +32,18 @@ check_any_network() {
 # Function to start Access Point
 start_ap() {
     echo "📡 Starting WiFi Access Point..."
+    
+    # Unblock WiFi if it's blocked by rfkill
+    if command -v rfkill >/dev/null 2>&1; then
+        sudo rfkill unblock wifi 2>/dev/null || true
+        sudo rfkill unblock wlan 2>/dev/null || true
+    fi
+    
+    # Check if wlan0 interface exists
+    if ! ip link show wlan0 >/dev/null 2>&1; then
+        echo "❌ No wlan0 interface found. Cannot start AP."
+        return 1
+    fi
     
     # Install required packages if not present
     if ! command -v hostapd >/dev/null 2>&1; then
@@ -79,9 +91,19 @@ domain=local
 address=/dataorb.local/192.168.4.1
 EOF
     
-    # Start services
-    sudo systemctl start hostapd
-    sudo systemctl start dnsmasq
+    # Start services with error checking
+    if ! sudo systemctl start hostapd; then
+        echo "❌ Failed to start hostapd"
+        sudo journalctl -u hostapd --no-pager -n 20
+        return 1
+    fi
+    
+    if ! sudo systemctl start dnsmasq; then
+        echo "❌ Failed to start dnsmasq"
+        sudo journalctl -u dnsmasq --no-pager -n 20
+        sudo systemctl stop hostapd
+        return 1
+    fi
     
     # Enable IP forwarding
     sudo sysctl -w net.ipv4.ip_forward=1 > /dev/null
@@ -149,7 +171,49 @@ case "${1:-check}" in
     stop)
         stop_ap
         ;;
+    status)
+        if [ -f /tmp/wifi_ap_mode ]; then
+            echo "✅ Access Point mode is ACTIVE"
+            echo "SSID: $AP_SSID"
+            echo "IP: $AP_IP"
+            sudo systemctl status hostapd --no-pager | head -n 5
+            sudo systemctl status dnsmasq --no-pager | head -n 5
+        else
+            echo "❌ Access Point mode is NOT active"
+        fi
+        if check_network; then
+            echo "✅ Internet connectivity: YES"
+        else
+            echo "❌ Internet connectivity: NO"
+        fi
+        ;;
+    test)
+        echo "Running test mode..."
+        echo "Checking rfkill status:"
+        if command -v rfkill >/dev/null 2>&1; then
+            rfkill list wifi 2>/dev/null || rfkill list 2>/dev/null || echo "rfkill not available"
+        else
+            echo "rfkill command not found"
+        fi
+        echo ""
+        echo "Checking interfaces:"
+        ip link show | grep -E "^[0-9]+: (eth|wlan)"
+        echo ""
+        echo "Checking network connectivity:"
+        if check_network; then
+            echo "✅ Have internet"
+        else
+            echo "❌ No internet"
+        fi
+        echo ""
+        echo "Checking any network:"
+        if check_any_network; then
+            echo "✅ Have network interface with IP"
+        else
+            echo "❌ No network interface with IP"
+        fi
+        ;;
     check|*)
-        main
+        main "$1"
         ;;
 esac

@@ -200,11 +200,12 @@ The deployment consists of four phases:
 ## Variables
 
 ### Required Variables
-- `vault_posthog_api_key` - PostHog API key (encrypted)
-- `vault_posthog_project_id` - PostHog project ID (encrypted)
+- `pi_model` - Raspberry Pi model: pi_zero_w, pi_zero_2w, pi3, pi4, or pi5
+- `display_type` - Display type: hyperpixel_round, waveshare_34_hdmi, or hdmi
+- `vault_posthog_api_key` - PostHog API key (encrypted) - set after deployment via web UI
+- `vault_posthog_project_id` - PostHog project ID (encrypted) - set after deployment via web UI
 
 ### Optional Variables
-- `display_type` - Display type (default: hyperpixel_round)
 - `display_width` - Display width in pixels (default: 480)
 - `display_height` - Display height in pixels (default: 480)
 - `wifi_ssid` - WiFi network name

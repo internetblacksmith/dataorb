@@ -43,10 +43,34 @@
 # Python interpreter on Raspberry Pi
 ansible_python_interpreter=/usr/bin/python3
 
-# Display configuration
+# ============================================================================
+# NOTE: Most configuration can be changed later via the web interface!
+# After deployment, access the config page at: http://your-pi-ip/config
+# Or press Ctrl+Shift+C on the display to open the configuration interface
+#
+# Only hardware-specific settings (pi_model, display_type) must be set here
+# Everything else (WiFi, themes, metrics, OTA settings) can be configured
+# through the web UI after installation
+# ============================================================================
+
+# REQUIRED: Pi model configuration (cannot be changed via web UI)
+# Options: pi_zero_w, pi_zero_2w, pi3, pi4, pi5
+pi_model=pi_zero_w
+
+# REQUIRED: Display configuration (cannot be changed via web UI)
+# Options: hyperpixel_round, waveshare_34_hdmi, hdmi
 display_type=hyperpixel_round
 
-# WiFi Configuration (optional - uncomment and set if needed)
+# Application installation directory (optional - defaults to user home)
+# app_dir=/home/pi/pi-analytics-dashboard
+
+# WiFi Configuration (optional - can be changed later via web UI)
 # wifi_ssid=YourWiFiNetwork
 # wifi_password=YourWiFiPassword
 # wifi_country=US
+
+# OTA Update Configuration (optional - can be changed later via web UI)
+# ota_enabled=true
+# ota_branch=main
+# ota_check_on_boot=true
+# ota_auto_pull=false

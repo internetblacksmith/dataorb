@@ -1489,6 +1489,17 @@
     # This allows users to connect to the Pi and configure WiFi settings
     # even when it's not connected to a network.
     
+    - name: Set WiFi country code
+      command: raspi-config nonint do_wifi_country {{ wifi_country | default('US') }}
+      changed_when: false
+      tags: ['wifi', 'ap', 'config']
+    
+    - name: Unblock WiFi with rfkill
+      command: rfkill unblock wifi
+      ignore_errors: true
+      changed_when: false
+      tags: ['wifi', 'ap']
+    
     - name: Install WiFi AP packages
       # Packages needed to create a WiFi access point
       apt:
