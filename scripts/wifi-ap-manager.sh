@@ -6,6 +6,16 @@ AP_SSID="DataOrb-Setup"
 AP_PASS="dataorb123"
 AP_IP="192.168.4.1"
 
+# Auto-detect WiFi interface to use for AP
+# Prefer wlan1 (USB adapter) if available, fallback to wlan0
+if ip link show wlan1 >/dev/null 2>&1; then
+    AP_INTERFACE="wlan1"
+    echo "Using wlan1 (USB WiFi adapter) for Access Point"
+else
+    AP_INTERFACE="wlan0"
+    echo "Using wlan0 (built-in WiFi) for Access Point"
+fi
+
 # Function to check if we have network connectivity
 check_network() {
     # Check if we can reach a public DNS server or local gateway
@@ -21,8 +31,8 @@ check_any_network() {
         return 0
     fi
     
-    # Check if wlan0 has an IP (not the AP address)
-    if ip addr show wlan0 2>/dev/null | grep "inet " | grep -v "inet $AP_IP" | grep -q "inet "; then
+    # Check if wireless interface has an IP (not the AP address)
+    if ip addr show $AP_INTERFACE 2>/dev/null | grep "inet " | grep -v "inet $AP_IP" | grep -q "inet "; then
         return 0
     fi
     
@@ -39,9 +49,9 @@ start_ap() {
         sudo rfkill unblock wlan 2>/dev/null || true
     fi
     
-    # Check if wlan0 interface exists
-    if ! ip link show wlan0 >/dev/null 2>&1; then
-        echo "❌ No wlan0 interface found. Cannot start AP."
+    # Check if wireless interface exists
+    if ! ip link show $AP_INTERFACE >/dev/null 2>&1; then
+        echo "❌ No $AP_INTERFACE interface found. Cannot start AP."
         return 1
     fi
     
@@ -61,13 +71,13 @@ start_ap() {
     sudo killall wpa_supplicant 2>/dev/null || true
     
     # Configure network interface
-    sudo ip addr flush dev wlan0
-    sudo ip addr add ${AP_IP}/24 dev wlan0
-    sudo ip link set wlan0 up
+    sudo ip addr flush dev $AP_INTERFACE
+    sudo ip addr add ${AP_IP}/24 dev $AP_INTERFACE
+    sudo ip link set $AP_INTERFACE up
     
     # Configure hostapd
     sudo tee /etc/hostapd/hostapd.conf > /dev/null << EOF
-interface=wlan0
+interface=$AP_INTERFACE
 driver=nl80211
 ssid=$AP_SSID
 hw_mode=g
@@ -85,7 +95,7 @@ EOF
     
     # Configure dnsmasq
     sudo tee /etc/dnsmasq.conf > /dev/null << EOF
-interface=wlan0
+interface=$AP_INTERFACE
 dhcp-range=192.168.4.2,192.168.4.100,255.255.255.0,24h
 domain=local
 address=/dataorb.local/192.168.4.1

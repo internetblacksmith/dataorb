@@ -39,8 +39,18 @@ export const useDashboardStats = <T extends DashboardStats>(
       const data = await response.json();
 
       if (data.error) {
-        setError(data.error);
-        setStats(null);
+        // Check for network loss error
+        if (data.error === 'network_lost' && data.redirect) {
+          // Show message briefly then redirect
+          setError('Network connection lost. Starting setup mode...');
+          setStats(null);
+          setTimeout(() => {
+            window.location.href = data.redirect;
+          }, 2000);
+        } else {
+          setError(data.error);
+          setStats(null);
+        }
       } else {
         setStats(data as T);
         setError(null);

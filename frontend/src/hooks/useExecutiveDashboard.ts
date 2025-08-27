@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { ExecutiveDashboardStats } from '../types';
 import { API_ENDPOINTS, REFRESH_INTERVALS } from '../constants';
+import { handleNetworkError } from '../utils/networkErrorHandler';
 
 /**
  * Custom hook specifically for Executive dashboard stats
@@ -20,8 +21,11 @@ export const useExecutiveDashboard = (refreshInterval: number = REFRESH_INTERVAL
       const data = await response.json();
 
       if (data.error) {
-        setError(data.error);
-        setStats(null);
+        // Check for network error first
+        if (!handleNetworkError(data, setError, setStats)) {
+          setError(data.error);
+          setStats(null);
+        }
       } else {
         setStats(data as ExecutiveDashboardStats);
         setError(null);

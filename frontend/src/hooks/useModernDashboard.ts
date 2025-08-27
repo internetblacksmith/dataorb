@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { ModernDashboardStats } from '../types';
 import { API_ENDPOINTS, REFRESH_INTERVALS } from '../constants';
+import { handleNetworkError } from '../utils/networkErrorHandler';
 
 /**
  * Custom hook specifically for Modern dashboard stats
@@ -20,8 +21,11 @@ export const useModernDashboard = (refreshInterval: number = REFRESH_INTERVALS.S
       const data = await response.json();
 
       if (data.error) {
-        setError(data.error);
-        setStats(null);
+        // Check for network error first
+        if (!handleNetworkError(data, setError, setStats)) {
+          setError(data.error);
+          setStats(null);
+        }
       } else {
         setStats(data as ModernDashboardStats);
         setError(null);

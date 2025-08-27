@@ -111,6 +111,35 @@ def get_available_metrics():
     )
 
 
+def check_and_start_wap_if_needed():
+    """Check network connectivity and start WAP if disconnected"""
+    import subprocess
+    
+    # Check if we have network connectivity
+    try:
+        result = subprocess.run(
+            ["ping", "-c", "1", "-W", "2", "8.8.8.8"], 
+            capture_output=True, 
+            timeout=3
+        )
+        has_network = result.returncode == 0
+        
+        if not has_network:
+            # Check if WAP is already running
+            if not os.path.exists("/tmp/wifi_ap_mode"):
+                # Start WAP immediately
+                app_dir = os.path.dirname(os.path.abspath(__file__))
+                script_path = os.path.join(app_dir, "..", "scripts", "wifi-ap-manager.sh")
+                subprocess.run(
+                    ["sudo", script_path, "start"],
+                    timeout=30
+                )
+                return True  # WAP started
+        return False  # No WAP needed
+    except Exception:
+        return False
+
+
 def fetch_posthog_metrics():
     """Fetch metrics from PostHog API"""
     POSTHOG_API_KEY, POSTHOG_PROJECT_ID, POSTHOG_HOST = get_posthog_config()
@@ -129,7 +158,7 @@ def fetch_posthog_metrics():
             "limit": "100",
         }
 
-        response = requests.get(events_url, headers=headers, params=params)
+        response = requests.get(events_url, headers=headers, params=params, timeout=5)
 
         if response.status_code == 401:
             return None, "PostHog API error: 401 - Invalid API key"
@@ -210,6 +239,10 @@ def fetch_posthog_metrics():
             "demo_mode": False,
         }, None
 
+    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
+        # Network error - check if we need to start WAP
+        check_and_start_wap_if_needed()
+        return None, "NETWORK_ERROR"
     except Exception as e:
         return None, str(e)
 
@@ -353,6 +386,8 @@ def get_classic_stats():
     stats, error = fetch_classic_dashboard_stats()
 
     if error:
+        if error == "NETWORK_ERROR":
+            return jsonify({"error": "network_lost", "redirect": "/setup"}), 503
         return jsonify({"error": error}), 500
 
     return jsonify(stats)
@@ -364,6 +399,8 @@ def get_modern_stats():
     stats, error = fetch_modern_dashboard_stats()
 
     if error:
+        if error == "NETWORK_ERROR":
+            return jsonify({"error": "network_lost", "redirect": "/setup"}), 503
         return jsonify({"error": error}), 500
 
     return jsonify(stats)
@@ -375,6 +412,8 @@ def get_analytics_stats():
     stats, error = fetch_analytics_dashboard_stats()
 
     if error:
+        if error == "NETWORK_ERROR":
+            return jsonify({"error": "network_lost", "redirect": "/setup"}), 503
         return jsonify({"error": error}), 500
 
     return jsonify(stats)
@@ -386,6 +425,8 @@ def get_executive_stats():
     stats, error = fetch_executive_dashboard_stats()
 
     if error:
+        if error == "NETWORK_ERROR":
+            return jsonify({"error": "network_lost", "redirect": "/setup"}), 503
         return jsonify({"error": error}), 500
 
     return jsonify(stats)
@@ -587,6 +628,106 @@ def health_check():
     )
 
 
+@app.route("/api/network/scan")
+def scan_networks():
+    """Scan for available WiFi networks"""
+    import subprocess
+    
+    networks = []
+    try:
+        # Use iwlist to scan for networks (works better in AP mode)
+        result = subprocess.run(
+            ["sudo", "iwlist", "wlan0", "scan"], 
+            capture_output=True, 
+            text=True, 
+            timeout=10
+        )
+        
+        if result.returncode == 0:
+            current_network = {}
+            for line in result.stdout.split("\n"):
+                line = line.strip()
+                if "Cell " in line:
+                    # New network found, save previous if exists
+                    if current_network:
+                        networks.append(current_network)
+                    current_network = {}
+                elif "ESSID:" in line:
+                    ssid = line.split('ESSID:"')[1].rstrip('"') if 'ESSID:"' in line else ""
+                    if ssid:
+                        current_network["ssid"] = ssid
+                elif "Quality=" in line:
+                    try:
+                        quality = line.split("Quality=")[1].split()[0]
+                        current_network["quality"] = quality
+                    except:
+                        current_network["quality"] = "Unknown"
+                elif "Encryption key:" in line:
+                    current_network["encryption"] = "on" if "on" in line else "off"
+                    
+            # Add last network
+            if current_network and "ssid" in current_network:
+                networks.append(current_network)
+                
+        # Deduplicate by SSID
+        seen = set()
+        unique_networks = []
+        for network in networks:
+            if network.get("ssid") and network["ssid"] not in seen:
+                seen.add(network["ssid"])
+                unique_networks.append(network)
+                
+        return jsonify(unique_networks)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/network/connect", methods=["POST"])
+def connect_network():
+    """Connect to a WiFi network"""
+    import subprocess
+    
+    data = request.get_json()
+    ssid = data.get("ssid")
+    password = data.get("password")
+    
+    if not ssid:
+        return jsonify({"success": False, "error": "SSID is required"}), 400
+        
+    try:
+        # Create wpa_supplicant configuration
+        wpa_conf = f"""network={{
+    ssid="{ssid}"
+    psk="{password}"
+}}"""
+        
+        # Write to wpa_supplicant.conf
+        subprocess.run(
+            ["sudo", "bash", "-c", f"echo '{wpa_conf}' >> /etc/wpa_supplicant/wpa_supplicant.conf"],
+            check=True,
+            timeout=5
+        )
+        
+        # Restart networking to apply changes
+        subprocess.run(
+            ["sudo", "systemctl", "restart", "wpa_supplicant"],
+            check=True,
+            timeout=10
+        )
+        
+        # Stop AP mode if active
+        if os.path.exists("/tmp/wifi_ap_mode"):
+            subprocess.run(
+                ["sudo", f"{os.path.dirname(os.path.abspath(__file__))}/../scripts/wifi-ap-manager.sh", "stop"],
+                timeout=10
+            )
+            
+        return jsonify({"success": True, "message": "Connecting to network..."})
+        
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @app.route("/api/network/status")
 def network_status():
     """Check network and AP mode status"""
@@ -595,6 +736,9 @@ def network_status():
     # Check network connectivity first
     has_network = False
     has_ethernet = False
+    wifi_ssid = ""
+    wifi_signal = "0%"
+    
     try:
         # Check for internet connectivity
         result = subprocess.run(
@@ -608,13 +752,27 @@ def network_status():
         )
         if eth_result.returncode == 0 and "state UP" in eth_result.stdout:
             has_ethernet = True
+            
+        # Get WiFi status
+        wifi_result = subprocess.run(
+            ["iwconfig", "wlan0"], capture_output=True, text=True, timeout=2
+        )
+        if wifi_result.returncode == 0:
+            for line in wifi_result.stdout.split("\n"):
+                if "ESSID:" in line:
+                    wifi_ssid = line.split('ESSID:"')[1].split('"')[0] if 'ESSID:"' in line else ""
+                if "Link Quality" in line:
+                    # Extract signal quality percentage
+                    try:
+                        quality = line.split("Link Quality=")[1].split()[0]
+                        wifi_signal = quality
+                    except:
+                        wifi_signal = "0%"
     except (subprocess.TimeoutExpired, subprocess.SubprocessError):
         pass
 
-    # Only consider AP mode if no network connection (ethernet or wifi)
-    ap_mode = False
-    if not has_network and not has_ethernet:
-        ap_mode = os.path.exists("/tmp/wifi_ap_mode")
+    # Check AP mode
+    ap_mode = os.path.exists("/tmp/wifi_ap_mode")
 
     # Get current IP addresses
     ips = []
@@ -629,13 +787,17 @@ def network_status():
                     # Determine connection type
                     if "eth0" in line:
                         connection_type = "ethernet"
-                    elif "wlan0" in line and not ap_mode:
-                        connection_type = "wifi"
+                    elif "wlan0" in line or "wlan1" in line:
+                        if not ap_mode:
+                            connection_type = "wifi"
+
     except (subprocess.TimeoutExpired, subprocess.SubprocessError):
         pass
 
+    # Format response to match frontend expectations
     return jsonify(
         {
+            # Legacy fields for compatibility
             "ap_mode": ap_mode,
             "has_network": has_network,
             "connected": has_network,
@@ -643,6 +805,15 @@ def network_status():
             "ip_addresses": ips,
             "ap_ssid": "DataOrb-Setup" if ap_mode else None,
             "ap_password": "dataorb123" if ap_mode else None,
+            
+            # New fields expected by SetupPage
+            "network_connected": has_network,
+            "ap_active": ap_mode,
+            "wifi_status": {
+                "status": "connected" if wifi_ssid and has_network else "disconnected",
+                "ssid": wifi_ssid or (connection_type if connection_type == "ethernet" else "Not connected"),
+                "signal": wifi_signal
+            }
         }
     )
 

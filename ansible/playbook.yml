@@ -1488,6 +1488,10 @@
     # Configures automatic WiFi Access Point mode when no network is available.
     # This allows users to connect to the Pi and configure WiFi settings
     # even when it's not connected to a network.
+    #
+    # NOTE: The WiFi AP script automatically detects and uses USB WiFi adapters (wlan1)
+    # when available, which is necessary when displays like HyperPixel interfere with
+    # the built-in WiFi (wlan0).
     
     - name: Set WiFi country code
       command: raspi-config nonint do_wifi_country {{ wifi_country | default('US') }}
@@ -1606,6 +1610,20 @@
         - pi-analytics-wifi-ap.service
         - pi-analytics-wifi-check.timer
       when: wifi_script_check.stat.exists
+      tags: ['wifi', 'ap', 'services']
+    
+    - name: Unmask hostapd service
+      # Ensure hostapd isn't masked (prevents it from starting)
+      systemd:
+        name: hostapd
+        masked: no
+      tags: ['wifi', 'ap', 'services']
+    
+    - name: Unmask dnsmasq service
+      # Ensure dnsmasq isn't masked (prevents it from starting)
+      systemd:
+        name: dnsmasq
+        masked: no
       tags: ['wifi', 'ap', 'services']
     
     - name: Disable conflicting services
