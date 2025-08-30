@@ -8,7 +8,7 @@ SHELL := /bin/bash
 .DEFAULT_GOAL := menu
 
 # Default app directory for Pi deployment
-APP_DIR ?= /home/pianalytics/pi-analytics-dashboard
+APP_DIR ?= /home/pianalytics/dataorb
 
 # Node memory limit for Pi builds
 NODE_MEM ?= 512
@@ -423,8 +423,8 @@ deploy: build-local ## Build locally and deploy to Pi
 		exit 1; \
 	fi
 	@echo -e "$(YELLOW)Deploying to $(PI_USER)@$(PI_HOST)...$(NC)"
-	@ssh $(PI_USER)@$(PI_HOST) "mkdir -p ~/pi-analytics-dashboard/frontend"
-	@scp -r frontend/build $(PI_USER)@$(PI_HOST):~/pi-analytics-dashboard/frontend/
+	@ssh $(PI_USER)@$(PI_HOST) "mkdir -p ~/dataorb/frontend"
+	@scp -r frontend/build $(PI_USER)@$(PI_HOST):~/dataorb/frontend/
 	@echo -e "$(GREEN)✓ Deployed to $(PI_HOST)$(NC)"
 	@echo "Restart backend on Pi: ssh $(PI_USER)@$(PI_HOST) 'sudo systemctl restart pi-analytics-backend'"
 

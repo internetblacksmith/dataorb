@@ -1,4 +1,4 @@
-name: Build PostHog Pi OS Image
+name: Build DataOrb OS Image
 
 on:
   push:
@@ -9,32 +9,32 @@ on:
 jobs:
   build-image:
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
-      
+
     - name: Set up environment variables
       run: |
         echo "RELEASE_VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
         echo "BUILD_DATE=$(date -u +'%Y-%m-%d')" >> $GITHUB_ENV
-        
-    - name: Create custom stage for PostHog Pi
+
+    - name: Create custom stage for DataOrb
       run: |
         mkdir -p pi-gen-stage
-        cat > pi-gen-stage/00-install-posthog-pi/00-run.sh << 'EOF'
+        cat > pi-gen-stage/00-install-dataorb/00-run.sh << 'EOF'
         #!/bin/bash -e
-        
-        # Install PostHog Pi
-        echo "Installing PostHog Pi ${RELEASE_VERSION}..."
-        
+
+        # Install DataOrb
+        echo "Installing DataOrb ${RELEASE_VERSION}..."
+
         # Install system dependencies
         install -m 644 files/sources.list "${ROOTFS_DIR}/etc/apt/sources.list"
         on_chroot << CHROOT_EOF
         apt-get update
         apt-get install -y git python3-pip python3-venv nodejs npm chromium-browser xorg openbox lightdm curl wget
         CHROOT_EOF
-        
+
         # Create pi user if it doesn't exist
         on_chroot << CHROOT_EOF
         if ! id -u pi >/dev/null 2>&1; then
@@ -43,113 +43,113 @@ jobs:
           echo 'pi:raspberry' | chpasswd
         fi
         CHROOT_EOF
-        
-        # Install PostHog Pi as pi user
+
+        # Install DataOrb as pi user
         on_chroot << CHROOT_EOF
         su - pi -c "
           cd /home/pi
-          git clone https://github.com/jabawack81/posthog_pi.git
-          cd posthog_pi
+          git clone https://github.com/internetblacksmith/dataorb.git
+          cd dataorb
           git checkout ${RELEASE_VERSION}
-          
+
           # Build backend
           cd backend
           python3 -m venv venv
           source venv/bin/activate
           pip install -r requirements.txt
-          cp .env.example .env
-          
+          cp device_config.example.json device_config.json
+
           # Build frontend
           cd ../frontend
           npm install
           npm run build
         "
         CHROOT_EOF
-        
+
         # Install systemd services
-        install -m 644 files/posthog-display.service "${ROOTFS_DIR}/etc/systemd/system/posthog-display.service"
-        install -m 644 files/posthog-pi-ota.service "${ROOTFS_DIR}/etc/systemd/system/posthog-pi-ota.service"
-        
+        install -m 644 files/dataorb-display.service "${ROOTFS_DIR}/etc/systemd/system/dataorb-display.service"
+        install -m 644 files/dataorb-ota.service "${ROOTFS_DIR}/etc/systemd/system/dataorb-ota.service"
+
         # Enable services
         on_chroot << CHROOT_EOF
         systemctl daemon-reload
-        systemctl enable posthog-display.service
-        systemctl enable posthog-pi-ota.service
+        systemctl enable dataorb-display.service
+        systemctl enable dataorb-ota.service
         systemctl enable lightdm
         CHROOT_EOF
-        
+
         # Set up auto-login and kiosk mode
         install -m 644 files/lightdm.conf "${ROOTFS_DIR}/etc/lightdm/lightdm.conf"
         install -d "${ROOTFS_DIR}/home/pi/.config/openbox"
         install -m 644 files/openbox-autostart "${ROOTFS_DIR}/home/pi/.config/openbox/autostart"
-        
+
         # Set ownership
         on_chroot << CHROOT_EOF
         chown -R pi:pi /home/pi
         CHROOT_EOF
-        
-        echo "PostHog Pi installation completed!"
+
+        echo "DataOrb installation completed!"
         EOF
-        
-        chmod +x pi-gen-stage/00-install-posthog-pi/00-run.sh
-        
+
+        chmod +x pi-gen-stage/00-install-dataorb/00-run.sh
+
     - name: Create configuration files
       run: |
-        mkdir -p pi-gen-stage/00-install-posthog-pi/files
-        
+        mkdir -p pi-gen-stage/00-install-dataorb/files
+
         # Create systemd service file
-        cat > pi-gen-stage/00-install-posthog-pi/files/posthog-display.service << EOF
+        cat > pi-gen-stage/00-install-dataorb/files/dataorb-display.service << EOF
         [Unit]
-        Description=PostHog Pi Display Service
+        Description=DataOrb Display Service
         After=network.target
         Wants=network.target
-        
+
         [Service]
         Type=simple
         User=pi
         Group=pi
-        WorkingDirectory=/home/pi/posthog_pi/backend
+        WorkingDirectory=/home/pi/dataorb/backend
         Environment=DISPLAY=:0
         Environment=HOME=/home/pi
-        ExecStart=/home/pi/posthog_pi/backend/venv/bin/python app.py
+        ExecStart=/home/pi/dataorb/backend/venv/bin/python app.py
         Restart=always
         RestartSec=10
-        
+
         [Install]
         WantedBy=multi-user.target
         EOF
-        
+
         # Create OTA service file
-        cat > pi-gen-stage/00-install-posthog-pi/files/posthog-pi-ota.service << EOF
+        cat > pi-gen-stage/00-install-dataorb/files/dataorb-ota.service << EOF
         [Unit]
-        Description=PostHog Pi OTA Update Service
+        Description=DataOrb OTA Update Service
         After=network.target
         Wants=network.target
-        
+
         [Service]
         Type=oneshot
         User=pi
         Group=pi
-        WorkingDirectory=/home/pi/posthog_pi
+        WorkingDirectory=/home/pi/dataorb
         ExecStart=/usr/bin/python3 scripts/boot-update.py
-        
+
         [Install]
         WantedBy=multi-user.target
         EOF
-        
+
         # Create lightdm config
-        cat > pi-gen-stage/00-install-posthog-pi/files/lightdm.conf << EOF
+        cat > pi-gen-stage/00-install-dataorb/files/lightdm.conf << EOF
         [Seat:*]
         autologin-user=pi
         autologin-user-timeout=0
         user-session=openbox
         EOF
-        
+
         # Create openbox autostart
-        cat > pi-gen-stage/00-install-posthog-pi/files/openbox-autostart << EOF
+        cat > pi-gen-stage/00-install-dataorb/files/openbox-autostart << EOF
         # Wait for the display service to start
         sleep 10
-        
+
         # Start Chromium in kiosk mode
         chromium-browser \\
             --kiosk \\
@@ -167,20 +167,20 @@ jobs:
             --window-position=0,0 \\
             http://localhost:5000
         EOF
-        
+
         # Create sources.list (standard Raspberry Pi OS)
-        cat > pi-gen-stage/00-install-posthog-pi/files/sources.list << EOF
+        cat > pi-gen-stage/00-install-dataorb/files/sources.list << EOF
         deb http://deb.debian.org/debian bookworm main contrib non-free non-free-firmware
         deb http://deb.debian.org/debian bookworm-updates main contrib non-free non-free-firmware
         deb http://deb.debian.org/debian-security bookworm-security main contrib non-free non-free-firmware
         deb http://archive.raspberrypi.org/debian/ bookworm main
         EOF
-        
+
     - name: Build Raspberry Pi OS Image
       uses: usimd/pi-gen-action@v1
       with:
         # Raspberry Pi OS Lite as base
-        image-name: posthog-pi-${{ env.RELEASE_VERSION }}
+        image-name: dataorb-${{ env.RELEASE_VERSION }}
         stage-list: stage0 stage1 stage2 ./pi-gen-stage
         enable-ssh: true
         username: pi
@@ -189,63 +189,60 @@ jobs:
         timezone: UTC
         keyboard-keymap: us
         keyboard-layout: English (US)
-        wpa-essid: PostHogPi
+        wpa-essid: DataOrb
         wpa-password: changeme
         # Optimize for Pi Zero W
         pi-gen-config: |
-          IMG_NAME="PostHog-Pi"
+          IMG_NAME="DataOrb"
           ENABLE_SSH=1
           STAGE_LIST="stage0 stage1 stage2 ./pi-gen-stage"
           DEPLOY_COMPRESSION=xz
-          TARGET_HOSTNAME=posthog-pi
-          
+          TARGET_HOSTNAME=dataorb
+
     - name: Compress and prepare artifacts
       run: |
         # Find the generated image
         IMAGE_PATH=$(find deploy -name "*.img" | head -1)
         if [ -n "$IMAGE_PATH" ]; then
           echo "Found image: $IMAGE_PATH"
-          
+
           # Compress the image
           echo "Compressing image..."
           xz -9 -v "$IMAGE_PATH"
-          
+
           # Create release info
           cat > release-info.txt << EOF
-        PostHog Pi OS Image - ${{ env.RELEASE_VERSION }}
+        DataOrb OS Image - ${{ env.RELEASE_VERSION }}
         Built on: ${{ env.BUILD_DATE }}
-        
-        This is a pre-configured Raspberry Pi OS image with PostHog Pi pre-installed.
-        
+
+        Pre-configured Raspberry Pi OS image with DataOrb pre-installed.
+
         Features:
-        - PostHog Pi dashboard pre-installed and configured
+        - DataOrb dashboard pre-installed and configured
         - Auto-start on boot in kiosk mode
         - OTA update system enabled
         - WiFi access point setup for initial configuration
         - Optimized for HyperPixel Round display (480x480)
-        
+
         Default Credentials:
         - Username: pi
         - Password: changeme
         - SSH: Enabled
-        
+
         Quick Start:
         1. Flash this image to SD card (8GB minimum)
         2. Boot Raspberry Pi
-        3. Connect to "PostHogPi" WiFi network (password: changeme)
+        3. Connect to "DataOrb" WiFi network (password: changeme)
         4. Navigate to http://192.168.4.1:5000/setup
         5. Configure your WiFi and PostHog credentials
-        6. Enjoy your PostHog dashboard!
-        
-        For more information: https://github.com/jabawack81/posthog_pi
         EOF
-          
+
           echo "IMAGE_FILE=${IMAGE_PATH}.xz" >> $GITHUB_ENV
         else
           echo "No image file found!"
           exit 1
         fi
-        
+
     - name: Create Release
       uses: softprops/action-gh-release@v1
       if: startsWith(github.ref, 'refs/tags/')
@@ -253,16 +250,16 @@ jobs:
         files: |
           ${{ env.IMAGE_FILE }}
           release-info.txt
-        name: PostHog Pi OS Image ${{ env.RELEASE_VERSION }}
+        name: DataOrb OS Image ${{ env.RELEASE_VERSION }}
         body_path: release-info.txt
         draft: false
         prerelease: false
         generate_release_notes: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        
+
     - name: Update README with download link
       if: startsWith(github.ref, 'refs/tags/')
       run: |
         echo "Image built successfully!"
-        echo "Download URL will be: https://github.com/jabawack81/posthog_pi/releases/download/${{ env.RELEASE_VERSION }}/$(basename ${{ env.IMAGE_FILE }})"
+        echo "Download URL will be: https://github.com/internetblacksmith/dataorb/releases/download/${{ env.RELEASE_VERSION }}/$(basename ${{ env.IMAGE_FILE }})"
