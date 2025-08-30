@@ -2,7 +2,7 @@
 
 ## Overview
 
-PostHog Pi provides a RESTful API for accessing analytics data and managing the device.
+DataOrb provides a RESTful API for accessing analytics data and managing the device.
 
 ## Base URL
 
@@ -16,18 +16,36 @@ http://<raspberry-pi-ip>:5000
 
 #### Get Statistics
 ```http
-GET /api/stats
+GET /api/stats/<layout>
 ```
 
-Returns PostHog analytics for the last 24 hours.
+Returns PostHog analytics for the last 24 hours, formatted for the requested dashboard layout.
 
-**Response:**
+**Layouts:** `classic`, `modern`, `analytics`, `executive`
+
+**Example — Classic (`/api/stats/classic`):**
 ```json
 {
-  "events_count": 1234,
-  "unique_users": 456,
-  "page_views": 789,
-  "avg_events_per_user": 2.7
+  "top":   { "label": "Events",  "value": 1234 },
+  "left":  { "label": "Users",   "value": 5678 },
+  "right": { "label": "Devices", "value": 91011 },
+  "demo_mode": false,
+  "device_ip": "192.168.1.1"
+}
+```
+
+**Example — Modern (`/api/stats/modern`):**
+```json
+{
+  "primary":        { "label": "Active Users",    "value": 1500 },
+  "secondaryLeft":  { "label": "Total Events",    "value": 3000 },
+  "secondaryRight": { "label": "Unique Devices",  "value": 4500 },
+  "miniStat1":      { "label": "New Signups",     "value": 200 },
+  "miniStat2":      { "label": "Errors",          "value": 50 },
+  "miniStat3":      { "label": "API Calls",       "value": 1200 },
+  "demo_mode": false,
+  "device_ip": "192.168.1.1",
+  "lastUpdated": "2023-10-01T12:00:00Z"
 }
 ```
 
