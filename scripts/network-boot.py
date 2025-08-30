@@ -157,7 +157,7 @@ class NetworkBootManager:
             self.log_and_print("Access Point mode started successfully")
             self.log_and_print("Setup instructions:")
             self.log_and_print("1. Connect to WiFi network: PostHog-Pi-Setup")
-            self.log_and_print("2. Password: posthog123")
+            self.log_and_print("2. Password: <check-config>")
             self.log_and_print("3. Open browser: http://192.168.4.1:5000/setup")
             return True
         else:

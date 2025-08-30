@@ -31,7 +31,7 @@
     app_dir: /home/{{ ansible_user }}/pi-analytics-dashboard  # Where to install the app
     display_type: hyperpixel_round  # Display configuration: 'hyperpixel_round' or 'none'
     wifi_ap_ssid: DataOrb-Setup     # WiFi AP network name
-    wifi_ap_password: dataorb123    # WiFi AP password (min 8 characters)
+    wifi_ap_password: "{{ wifi_ap_password | default('changeme') }}"    # WiFi AP password (min 8 characters)
     
   tasks:
     # ============================================

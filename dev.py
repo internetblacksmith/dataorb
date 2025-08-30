@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Development server with file watching for Pi Analytics Dashboard
+Development server with file watching for DataOrb
 Automatically builds React and starts Flask dev server
 """
 import os
@@ -92,7 +92,7 @@ def main():
     script_dir = Path(__file__).parent
     os.chdir(script_dir)
     
-    print("🚀 Starting Pi Analytics Dashboard Development Server")
+    print("🚀 Starting DataOrb Development Server")
     print("=" * 50)
     
     # Check if frontend directory exists

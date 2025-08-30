@@ -184,13 +184,13 @@ jobs:
         stage-list: stage0 stage1 stage2 ./pi-gen-stage
         enable-ssh: true
         username: pi
-        password: posthog-pi
+        password: changeme
         locale: en_US.UTF-8
         timezone: UTC
         keyboard-keymap: us
         keyboard-layout: English (US)
         wpa-essid: PostHogPi
-        wpa-password: posthog123
+        wpa-password: changeme
         # Optimize for Pi Zero W
         pi-gen-config: |
           IMG_NAME="PostHog-Pi"
@@ -226,13 +226,13 @@ jobs:
         
         Default Credentials:
         - Username: pi
-        - Password: posthog-pi
+        - Password: changeme
         - SSH: Enabled
         
         Quick Start:
         1. Flash this image to SD card (8GB minimum)
         2. Boot Raspberry Pi
-        3. Connect to "PostHogPi" WiFi network (password: posthog123)
+        3. Connect to "PostHogPi" WiFi network (password: changeme)
         4. Navigate to http://192.168.4.1:5000/setup
         5. Configure your WiFi and PostHog credentials
         6. Enjoy your PostHog dashboard!

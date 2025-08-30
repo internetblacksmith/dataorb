@@ -3,7 +3,7 @@
 # Automatically starts AP mode when no network is available
 
 AP_SSID="DataOrb-Setup"
-AP_PASS="dataorb123"
+AP_PASS="${DATAORB_AP_PASS:-changeme}"
 AP_IP="192.168.4.1"
 
 # Auto-detect WiFi interface to use for AP

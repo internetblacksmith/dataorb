@@ -25,20 +25,11 @@ export function ConfigWatcher() {
         if (isFirstCheckRef.current) {
           configVersionRef.current = newVersion;
           isFirstCheckRef.current = false;
-          // Only log in development
-          if (process.env.NODE_ENV === 'development') {
-            // eslint-disable-next-line no-console
-            console.log(`Config version initialized: ${newVersion}`);
-          }
           return;
         }
 
         // Check if config has changed
         if (configVersionRef.current && configVersionRef.current !== newVersion) {
-          if (process.env.NODE_ENV === 'development') {
-            // eslint-disable-next-line no-console
-            console.log(`Config changed from ${configVersionRef.current} to ${newVersion}, reloading...`);
-          }
           // Small delay to ensure config is fully saved
           setTimeout(() => {
             window.location.reload();
