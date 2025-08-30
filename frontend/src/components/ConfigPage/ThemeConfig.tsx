@@ -105,34 +105,6 @@ export const ThemeConfig: React.FC<ThemeConfigProps> = React.memo(({
         </ul>
       </div>
 
-      {/* Import Theme Section */}
-      <div style={{ marginTop: '30px' }}>
-        <h3>Import Custom Theme</h3>
-        <p style={{ color: 'var(--text-secondary)' }}>
-          Upload a JSON file containing theme configuration
-        </p>
-        <input
-          type="file"
-          accept=".json"
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) {
-              const reader = new FileReader();
-              reader.onload = (event) => {
-                try {
-                  JSON.parse(event.target?.result as string);
-                  // TODO: Handle theme import (would need API endpoint)
-                  alert('Theme import functionality coming soon');
-                } catch {
-                  alert('Invalid theme file');
-                }
-              };
-              reader.readAsText(file);
-            }
-          }}
-          style={{ marginTop: '10px' }}
-        />
-      </div>
     </div>
   );
 });
