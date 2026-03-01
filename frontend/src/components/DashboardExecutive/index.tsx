@@ -209,9 +209,10 @@ const DashboardExecutive: React.FC = () => {
         {/* Center Brand */}
         <div className="center-brand">
           {themeData?.logo ? (
-            <div 
+            <img
               className="theme-logo"
-              dangerouslySetInnerHTML={{ __html: themeData.logo }}
+              src={`data:image/svg+xml;base64,${btoa(themeData.logo)}`}
+              alt="Brand logo"
             />
           ) : (
             <div className="brand-name">DATAORB</div>

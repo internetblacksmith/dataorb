@@ -1,9 +1,12 @@
+import logging
 import os
 import subprocess
 import shutil
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 import tempfile
+
+logger = logging.getLogger(__name__)
 
 
 class OTAManager:
@@ -97,7 +100,8 @@ class OTAManager:
             }
 
         except Exception as e:
-            return {"error": str(e), "update_available": False}
+            logger.error("Update check failed: %s", e)
+            return {"error": "Failed to check for updates", "update_available": False}
 
     def perform_update(self, force: bool = False) -> Dict[str, Any]:
         """Perform OTA update"""
@@ -146,8 +150,9 @@ class OTAManager:
             }
 
         except Exception as e:
-            self._log(f"OTA update failed: {str(e)}")
-            return {"error": str(e), "success": False}
+            self._log(f"OTA update failed: {e}")
+            logger.error("OTA update failed: %s", e)
+            return {"error": "Update failed", "success": False}
 
     def perform_boot_update(self) -> Dict[str, Any]:
         """Perform update check on boot if configured"""
@@ -170,6 +175,12 @@ class OTAManager:
 
     def switch_branch(self, branch: str) -> Dict[str, Any]:
         """Switch to a different Git branch"""
+        import re
+
+        # Validate branch name format
+        if not re.match(r'^[a-zA-Z0-9._/-]+$', branch):
+            return {"error": "Invalid branch name", "success": False}
+
         try:
             # Check for uncommitted changes
             status_output = self._run_command(["git", "status", "--porcelain"], cwd=self.repo_path)
@@ -179,8 +190,8 @@ class OTAManager:
             # Fetch latest
             self._run_command(["git", "fetch"], cwd=self.repo_path)
 
-            # Switch branch
-            self._run_command(["git", "checkout", branch], cwd=self.repo_path)
+            # Switch branch (-- prevents flag injection)
+            self._run_command(["git", "checkout", "--", branch], cwd=self.repo_path)
 
             # Pull latest
             self._run_command(["git", "pull", "origin", branch], cwd=self.repo_path)
@@ -191,7 +202,8 @@ class OTAManager:
             return {"success": True, "message": f"Switched to branch: {branch}"}
 
         except Exception as e:
-            return {"error": str(e), "success": False}
+            logger.error("Branch switch failed: %s", e)
+            return {"error": "Failed to switch branch", "success": False}
 
     def get_available_branches(self) -> Dict[str, Any]:
         """Get list of available branches"""
@@ -220,7 +232,8 @@ class OTAManager:
             }
 
         except Exception as e:
-            return {"error": str(e), "branches": []}
+            logger.error("Failed to list branches: %s", e)
+            return {"error": "Failed to list branches", "branches": []}
 
     def create_backup(self, name: Optional[str] = None) -> Dict[str, Any]:
         """Create a backup of the current installation"""
@@ -257,7 +270,8 @@ class OTAManager:
             }
 
         except Exception as e:
-            return {"error": str(e), "success": False}
+            logger.error("Backup creation failed: %s", e)
+            return {"error": "Failed to create backup", "success": False}
 
     def rollback(self, backup_name: Optional[str] = None) -> Dict[str, Any]:
         """Rollback to a previous backup"""
@@ -269,7 +283,11 @@ class OTAManager:
                     return {"error": "No backups available"}
                 backup_name = backups["backups"][0]["name"]
 
-            backup_path = os.path.join(self.backup_dir, f"{backup_name}.tar.gz")
+            backup_path = os.path.realpath(
+                os.path.join(self.backup_dir, f"{backup_name}.tar.gz")
+            )
+            if not backup_path.startswith(os.path.realpath(self.backup_dir)):
+                return {"error": "Invalid backup name", "success": False}
 
             if not os.path.exists(backup_path):
                 return {"error": f"Backup not found: {backup_name}"}
@@ -280,7 +298,8 @@ class OTAManager:
             return {"success": True, "message": f"Rolled back to: {backup_name}"}
 
         except Exception as e:
-            return {"error": str(e), "success": False}
+            logger.error("Rollback failed: %s", e)
+            return {"error": "Rollback failed", "success": False}
 
     def list_backups(self) -> Dict[str, Any]:
         """List available backups"""
@@ -303,7 +322,8 @@ class OTAManager:
             return {"backups": backups}
 
         except Exception as e:
-            return {"error": str(e), "backups": []}
+            logger.error("Failed to list backups: %s", e)
+            return {"error": "Failed to list backups", "backups": []}
 
     def get_config(self) -> Dict[str, Any]:
         """Get OTA configuration"""
@@ -328,7 +348,8 @@ class OTAManager:
             return {"success": True, "message": "Services restarted"}
 
         except Exception as e:
-            return {"error": str(e), "success": False}
+            logger.error("Service restart failed: %s", e)
+            return {"error": "Failed to restart services", "success": False}
 
     def reboot_system(self, delay: int = 10) -> Dict[str, Any]:
         """Reboot the system"""
@@ -339,11 +360,26 @@ class OTAManager:
                 "message": f"System will reboot in {delay} seconds",
             }
         except Exception as e:
-            return {"error": str(e), "success": False}
+            logger.error("Reboot failed: %s", e)
+            return {"error": "Failed to initiate reboot", "success": False}
+
+    @staticmethod
+    def _validate_cron_schedule(schedule: str) -> bool:
+        """Validate that schedule is a valid 5-field cron expression"""
+        import re
+        fields = schedule.strip().split()
+        if len(fields) != 5:
+            return False
+        # Each field: number, range, list, step, or wildcard
+        field_re = re.compile(r'^(\*|[0-9]{1,2})([-/,][0-9]{1,2})*$')
+        return all(field_re.match(f) for f in fields)
 
     def update_cron_schedule(self, schedule: str) -> Dict[str, Any]:
         """Update cron schedule for automatic updates"""
         try:
+            if not self._validate_cron_schedule(schedule):
+                return {"error": "Invalid cron schedule format (expected 5 fields)", "success": False}
+
             # Update config
             self.config_manager.update_ota_config({"update_schedule": schedule})
 
@@ -376,7 +412,8 @@ class OTAManager:
             return {"success": True, "schedule": schedule}
 
         except Exception as e:
-            return {"error": str(e), "success": False}
+            logger.error("Cron schedule update failed: %s", e)
+            return {"error": "Failed to update schedule", "success": False}
 
     def test_git_connection(self) -> Dict[str, Any]:
         """Test Git connectivity"""
@@ -384,7 +421,8 @@ class OTAManager:
             output = self._run_command(["git", "ls-remote", "origin"], cwd=self.repo_path)
             return {"success": True, "connected": bool(output)}
         except Exception as e:
-            return {"error": str(e), "connected": False}
+            logger.error("Git connection test failed: %s", e)
+            return {"error": "Connection test failed", "connected": False}
 
     def get_disk_usage(self) -> Dict[str, Any]:
         """Get disk usage information"""
@@ -404,7 +442,8 @@ class OTAManager:
             return {}
 
         except Exception as e:
-            return {"error": str(e)}
+            logger.error("Disk usage check failed: %s", e)
+            return {"error": "Failed to get disk usage"}
 
     def clean_cache(self) -> Dict[str, Any]:
         """Clean temporary files and caches"""
@@ -430,7 +469,8 @@ class OTAManager:
             return {"success": True, "cleaned": cleaned}
 
         except Exception as e:
-            return {"error": str(e), "success": False}
+            logger.error("Cache clean failed: %s", e)
+            return {"error": "Failed to clean cache", "success": False}
 
     def get_logs(self, lines: int = 100) -> Dict[str, Any]:
         """Get OTA update logs"""
@@ -441,7 +481,8 @@ class OTAManager:
                     return {"logs": log_lines[-lines:]}
             return {"logs": []}
         except Exception as e:
-            return {"error": str(e), "logs": []}
+            logger.error("Failed to read logs: %s", e)
+            return {"error": "Failed to read logs", "logs": []}
 
     def _run_command(self, cmd: List[str], cwd: Optional[str] = None) -> str:
         """Run a shell command and return output"""

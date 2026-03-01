@@ -1,7 +1,9 @@
 from flask import Flask, jsonify, send_from_directory, request, render_template
 from flask_cors import CORS
+from functools import wraps
 import requests
 import os
+import secrets
 import logging
 from datetime import datetime, timedelta, timezone
 from config_manager import ConfigManager
@@ -21,12 +23,46 @@ app = Flask(
     template_folder="templates",
 )
 
-CORS(app, resources={r"/api/*": {"origins": "*"}})
+# Restrict CORS to same-origin only (device serves its own frontend)
+CORS(app, resources={r"/api/*": {"origins": "self"}})
 
 # Initialize managers
 config_manager = ConfigManager()
 ota_manager = OTAManager(config_manager)
 theme_manager = ThemeManager(config_manager)
+
+
+def _get_or_create_admin_token() -> str:
+    """Get existing admin token or generate one on first boot"""
+    config = config_manager.get_config()
+    token = config.get("advanced", {}).get("admin_token")
+    if not token:
+        token = secrets.token_urlsafe(32)
+        config_manager.update_config({"advanced": {"admin_token": token}})
+        logger.info("Generated new admin token: %s", token)
+    return token
+
+
+def require_admin(f):
+    """Decorator requiring a valid admin token for protected endpoints"""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        auth = request.headers.get("Authorization", "")
+        if not auth.startswith("Bearer "):
+            return jsonify({"error": "Authorization required"}), 401
+        token = auth[7:]
+        if not secrets.compare_digest(token, _get_or_create_admin_token()):
+            return jsonify({"error": "Invalid token"}), 403
+        return f(*args, **kwargs)
+    return decorated
+
+
+@app.route("/api/auth/token")
+def get_admin_token():
+    """Return admin token — only accessible from the device itself"""
+    if request.remote_addr not in ("127.0.0.1", "::1"):
+        return jsonify({"error": "Only accessible from localhost"}), 403
+    return jsonify({"token": _get_or_create_admin_token()})
 
 
 # Load PostHog configuration from config file or environment
@@ -244,7 +280,8 @@ def fetch_posthog_metrics():
         check_and_start_wap_if_needed()
         return None, "NETWORK_ERROR"
     except Exception as e:
-        return None, str(e)
+        logger.error("PostHog metrics fetch error: %s", e)
+        return None, "FETCH_ERROR"
 
 
 def fetch_classic_dashboard_stats():
@@ -593,7 +630,8 @@ def get_stats():
         return jsonify(response_data)
 
     except Exception as e:
-        return jsonify({"error": str(e)})
+        logger.error("Stats endpoint error: %s", e)
+        return jsonify({"error": "Failed to fetch analytics data"}), 500
 
 
 @app.route("/api/health")
@@ -679,33 +717,41 @@ def scan_networks():
                 
         return jsonify(unique_networks)
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        logger.error("Network scan error: %s", e)
+        return jsonify({"error": "Failed to scan networks"}), 500
 
 
 @app.route("/api/network/connect", methods=["POST"])
+@require_admin
 def connect_network():
     """Connect to a WiFi network"""
     import subprocess
-    
+    import re
+
     data = request.get_json()
     ssid = data.get("ssid")
     password = data.get("password")
-    
+
     if not ssid:
         return jsonify({"success": False, "error": "SSID is required"}), 400
-        
+
+    # Validate SSID: 1-32 chars, printable ASCII, no quotes or backslashes
+    if not re.match(r'^[a-zA-Z0-9 _\-\.]{1,32}$', ssid):
+        return jsonify({"success": False, "error": "Invalid SSID format"}), 400
+
+    # Validate password: 8-63 chars for WPA, printable ASCII only
+    if password and (len(password) < 8 or len(password) > 63):
+        return jsonify({"success": False, "error": "Password must be 8-63 characters"}), 400
+    if password and not re.match(r'^[\x20-\x7E]+$', password):
+        return jsonify({"success": False, "error": "Password contains invalid characters"}), 400
+
     try:
-        # Create wpa_supplicant configuration
-        wpa_conf = f"""network={{
-    ssid="{ssid}"
-    psk="{password}"
-}}"""
-        
-        # Write to wpa_supplicant.conf
+        # Write directly via sudo tee — no shell interpolation
+        wpa_entry = f'\nnetwork={{\n    ssid="{ssid}"\n    psk="{password}"\n}}\n'
         subprocess.run(
-            ["sudo", "bash", "-c", f"echo '{wpa_conf}' >> /etc/wpa_supplicant/wpa_supplicant.conf"],
-            check=True,
-            timeout=5
+            ["sudo", "tee", "-a", "/etc/wpa_supplicant/wpa_supplicant.conf"],
+            input=wpa_entry, text=True, check=True, timeout=5,
+            stdout=subprocess.DEVNULL
         )
         
         # Restart networking to apply changes
@@ -725,7 +771,8 @@ def connect_network():
         return jsonify({"success": True, "message": "Connecting to network..."})
         
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        logger.error("WiFi connect error: %s", e)
+        return jsonify({"success": False, "error": "Failed to connect to network"}), 500
 
 
 @app.route("/api/network/status")
@@ -804,7 +851,6 @@ def network_status():
             "connection_type": connection_type,
             "ip_addresses": ips,
             "ap_ssid": "DataOrb-Setup" if ap_mode else None,
-            "ap_password": "dataorb123" if ap_mode else None,
             
             # New fields expected by SetupPage
             "network_connected": has_network,
@@ -832,6 +878,7 @@ def check_for_updates():
 
 
 @app.route("/api/admin/ota/update", methods=["POST"])
+@require_admin
 def apply_update():
     """Apply OTA update"""
     result = ota_manager.apply_update()
@@ -839,6 +886,7 @@ def apply_update():
 
 
 @app.route("/api/admin/ota/config", methods=["GET", "POST"])
+@require_admin
 def ota_config():
     """Get or update OTA configuration"""
     if request.method == "GET":
@@ -855,6 +903,7 @@ def ota_config():
 
 
 @app.route("/api/admin/ota/switch-branch", methods=["POST"])
+@require_admin
 def switch_branch():
     """Switch Git branch for OTA updates"""
     data = request.get_json()
@@ -879,6 +928,7 @@ def get_backups():
 
 
 @app.route("/api/admin/ota/rollback", methods=["POST"])
+@require_admin
 def rollback():
     """Rollback to a specific backup"""
     data = request.get_json()
@@ -891,6 +941,7 @@ def rollback():
 
 
 @app.route("/api/admin/ota/update-cron", methods=["POST"])
+@require_admin
 def update_cron():
     """Update cron schedule for automatic updates"""
     data = request.get_json()
@@ -915,6 +966,7 @@ def get_update_history():
 
 
 @app.route("/api/admin/ota/clean-cache", methods=["POST"])
+@require_admin
 def clean_cache():
     """Clean OTA cache and temporary files"""
     return jsonify(ota_manager.clean_cache())
@@ -946,6 +998,7 @@ def export_theme(theme_id):
 
 
 @app.route("/api/themes/import", methods=["POST"])
+@require_admin
 def import_theme():
     """Import a theme from uploaded JSON"""
     try:
@@ -954,10 +1007,12 @@ def import_theme():
             return jsonify({"success": True, "message": "Theme imported successfully"})
         return jsonify({"success": False, "error": "Invalid theme format"}), 400
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        logger.error("Theme import error: %s", e)
+        return jsonify({"success": False, "error": "Failed to import theme"}), 500
 
 
 @app.route("/api/themes/custom", methods=["POST"])
+@require_admin
 def add_custom_theme():
     """Add or update a custom theme"""
     try:
@@ -972,10 +1027,12 @@ def add_custom_theme():
             return jsonify({"success": True, "message": "Theme saved successfully"})
         return jsonify({"success": False, "error": "Invalid theme data"}), 400
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        logger.error("Custom theme save error: %s", e)
+        return jsonify({"success": False, "error": "Failed to save theme"}), 500
 
 
 @app.route("/api/themes/custom/<theme_id>", methods=["DELETE"])
+@require_admin
 def delete_custom_theme(theme_id):
     """Delete a custom theme"""
     if theme_manager.delete_custom_theme(theme_id):
@@ -985,6 +1042,7 @@ def delete_custom_theme(theme_id):
 
 # Configuration endpoints
 @app.route("/api/admin/config")
+@require_admin
 def get_config():
     """Get device configuration"""
     import socket
@@ -1011,6 +1069,7 @@ def get_config():
 
 
 @app.route("/api/admin/config", methods=["POST"])
+@require_admin
 def update_config():
     """Update device configuration"""
     data = request.get_json()
@@ -1034,6 +1093,7 @@ def get_config_version():
 
 
 @app.route("/api/admin/config/validate/posthog", methods=["POST"])
+@require_admin
 def validate_posthog_config():
     """Validate PostHog configuration"""
     data = request.get_json()
@@ -1049,6 +1109,12 @@ def validate_posthog_config():
     api_key = data.get("api_key")
     project_id = data.get("project_id")
     host = data.get("host", "https://app.posthog.com")
+
+    # SSRF protection: only allow known PostHog hosts
+    from urllib.parse import urlparse
+    parsed = urlparse(host)
+    if not parsed.hostname or not parsed.hostname.endswith("posthog.com"):
+        return jsonify({"valid": False, "error": "Host must be a posthog.com domain"}), 400
 
     try:
         headers = {
@@ -1097,10 +1163,12 @@ def validate_posthog_config():
             503,
         )
     except Exception as e:
-        return jsonify({"valid": False, "error": f"❌ Error testing connection: {str(e)}"}), 500
+        logger.error("PostHog connection test error: %s", e)
+        return jsonify({"valid": False, "error": "Error testing connection"}), 500
 
 
 @app.route("/api/admin/config", methods=["DELETE"])
+@require_admin
 def delete_config():
     """Delete device configuration completely"""
     try:
@@ -1137,7 +1205,8 @@ def delete_config():
 
         return jsonify({"success": True, "message": "Configuration deleted successfully"})
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        logger.error("Config deletion error: %s", e)
+        return jsonify({"success": False, "error": "Failed to delete configuration"}), 500
 
 
 # Serve static files (JS, CSS, images)

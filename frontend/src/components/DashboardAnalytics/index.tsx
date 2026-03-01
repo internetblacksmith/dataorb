@@ -178,9 +178,10 @@ const DashboardAnalytics: React.FC = () => {
         <div className="top-section">
           <div className="brand-area">
             {themeData?.logo ? (
-              <div
+              <img
                 className="theme-logo"
-                dangerouslySetInnerHTML={{ __html: themeData.logo }}
+                src={`data:image/svg+xml;base64,${btoa(themeData.logo)}`}
+                alt="Brand logo"
               />
             ) : (
               <div className="default-brand">
