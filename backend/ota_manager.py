@@ -1,10 +1,11 @@
 import logging
 import os
-import subprocess
+import re
 import shutil
+import subprocess
+import tempfile
 from datetime import datetime
 from typing import Dict, Any, List, Optional
-import tempfile
 
 logger = logging.getLogger(__name__)
 
@@ -174,11 +175,8 @@ class OTAManager:
         return update_info
 
     def switch_branch(self, branch: str) -> Dict[str, Any]:
-        """Switch to a different Git branch"""
-        import re
-
         # Validate branch name format
-        if not re.match(r'^[a-zA-Z0-9._/-]+$', branch):
+        if not re.match(r'^[a-zA-Z0-9][a-zA-Z0-9._/-]*$', branch):
             return {"error": "Invalid branch name", "success": False}
 
         try:
@@ -190,8 +188,7 @@ class OTAManager:
             # Fetch latest
             self._run_command(["git", "fetch"], cwd=self.repo_path)
 
-            # Switch branch (-- prevents flag injection)
-            self._run_command(["git", "checkout", "--", branch], cwd=self.repo_path)
+            self._run_command(["git", "checkout", branch], cwd=self.repo_path)
 
             # Pull latest
             self._run_command(["git", "pull", "origin", branch], cwd=self.repo_path)
@@ -248,13 +245,11 @@ class OTAManager:
 
             # Create temporary tar file
             with tempfile.NamedTemporaryFile(suffix=".tar.gz", delete=False) as tmp:
-                tar_cmd = [
-                    "tar",
-                    "-czf",
-                    tmp.name,
-                    "--exclude=" + " --exclude=".join(exclude_dirs),
-                    ".",
-                ]
+                tar_cmd = (
+                    ["tar", "-czf", tmp.name]
+                    + [f"--exclude={d}" for d in exclude_dirs]
+                    + ["."]
+                )
                 self._run_command(tar_cmd, cwd=self.repo_path)
 
                 # Move to backup location
@@ -351,13 +346,13 @@ class OTAManager:
             logger.error("Service restart failed: %s", e)
             return {"error": "Failed to restart services", "success": False}
 
-    def reboot_system(self, delay: int = 10) -> Dict[str, Any]:
-        """Reboot the system"""
+    def reboot_system(self, delay_seconds: int = 60) -> Dict[str, Any]:
         try:
-            self._run_command(["sudo", "shutdown", "-r", f"+{delay//60}"])
+            minutes = max(1, delay_seconds // 60)
+            self._run_command(["sudo", "shutdown", "-r", f"+{minutes}"])
             return {
                 "success": True,
-                "message": f"System will reboot in {delay} seconds",
+                "message": f"System will reboot in {minutes} minute(s)",
             }
         except Exception as e:
             logger.error("Reboot failed: %s", e)
@@ -365,8 +360,6 @@ class OTAManager:
 
     @staticmethod
     def _validate_cron_schedule(schedule: str) -> bool:
-        """Validate that schedule is a valid 5-field cron expression"""
-        import re
         fields = schedule.strip().split()
         if len(fields) != 5:
             return False

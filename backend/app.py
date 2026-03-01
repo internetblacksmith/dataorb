@@ -1,21 +1,23 @@
+import logging
+import os
+import secrets
+import socket
+import subprocess
+from datetime import datetime, timedelta, timezone
+from urllib.parse import urlparse
+
+import requests
 from flask import Flask, jsonify, send_from_directory, request, render_template
 from flask_cors import CORS
 from functools import wraps
-import requests
-import os
-import secrets
-import logging
-from datetime import datetime, timedelta, timezone
+
 from config_manager import ConfigManager
 from ota_manager import OTAManager
 from themes import ThemeManager
 
-# Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Configure Flask to serve React build files and use templates
-# Don't use static_url_path="" as it interferes with routing
 app = Flask(
     __name__,
     static_folder="../frontend/build",
@@ -23,10 +25,8 @@ app = Flask(
     template_folder="templates",
 )
 
-# Restrict CORS to same-origin only (device serves its own frontend)
 CORS(app, resources={r"/api/*": {"origins": "self"}})
 
-# Initialize managers
 config_manager = ConfigManager()
 ota_manager = OTAManager(config_manager)
 theme_manager = ThemeManager(config_manager)
@@ -39,7 +39,7 @@ def _get_or_create_admin_token() -> str:
     if not token:
         token = secrets.token_urlsafe(32)
         config_manager.update_config({"advanced": {"admin_token": token}})
-        logger.info("Generated new admin token: %s", token)
+        logger.info("Generated new admin token")
     return token
 
 
@@ -92,25 +92,60 @@ def get_default_metric_label(metric_type):
     return labels.get(metric_type, metric_type.replace("_", " ").title())
 
 
-def format_metric_object(value, label):
-    """Format a metric as an object with label and value"""
-    return {"label": label, "value": value}
+DEMO_METRICS = {
+    "events_24h": 142,
+    "unique_users_24h": 37,
+    "page_views_24h": 89,
+    "custom_events_24h": 53,
+    "sessions_24h": 24,
+    "events_1h": 8,
+    "avg_events_per_user": 3.8,
+    "demo_mode": True,
+}
 
-
-def get_device_ip():
-    """Get the device's IP address"""
-    try:
-        config = config_manager.get_config()
-        network_status = config.get("network", {})
-        return network_status.get("current_ip", "Unknown")
-    except Exception:
-        return "Unknown"
-
-
-def get_demo_mode():
-    """Check if running in demo mode"""
-    config = config_manager.get_config()
-    return config.get("demo_mode", False)
+LAYOUT_POSITION_MAPS = {
+    "classic": {
+        "positions": {"top": "top", "left": "left", "right": "right"},
+        "extras": {},
+    },
+    "modern": {
+        "positions": {
+            "top": "primary",
+            "left": "secondaryLeft",
+            "right": "secondaryRight",
+            "mini1": "miniStat1",
+            "mini2": "miniStat2",
+            "mini3": "miniStat3",
+        },
+        "extras": {"lastUpdated": True},
+    },
+    "analytics": {
+        "positions": {
+            "center": "center",
+            "top": "top",
+            "left": "left",
+            "right": "right",
+            "bottom": "bottom",
+            "stat1": "stat1",
+            "stat2": "stat2",
+            "stat3": "stat3",
+        },
+        "extras": {"lastUpdated": True},
+    },
+    "executive": {
+        "positions": {
+            "north": "north",
+            "east": "east",
+            "south": "south",
+            "west": "west",
+            "northeast": "northEast",
+            "southeast": "southEast",
+            "southwest": "southWest",
+            "northwest": "northWest",
+        },
+        "extras": {"lastUpdated": True, "recent_events": True},
+    },
+}
 
 
 @app.route("/api/metrics/available")
@@ -148,10 +183,6 @@ def get_available_metrics():
 
 
 def check_and_start_wap_if_needed():
-    """Check network connectivity and start WAP if disconnected"""
-    import subprocess
-    
-    # Check if we have network connectivity
     try:
         result = subprocess.run(
             ["ping", "-c", "1", "-W", "2", "8.8.8.8"], 
@@ -178,17 +209,17 @@ def check_and_start_wap_if_needed():
 
 def fetch_posthog_metrics():
     """Fetch metrics from PostHog API"""
-    POSTHOG_API_KEY, POSTHOG_PROJECT_ID, POSTHOG_HOST = get_posthog_config()
-    if not POSTHOG_API_KEY or not POSTHOG_PROJECT_ID:
+    api_key, project_id, host = get_posthog_config()
+    if not api_key or not project_id:
         return None, "PostHog credentials not configured"
 
     try:
         headers = {
-            "Authorization": f"Bearer {POSTHOG_API_KEY}",
+            "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
         }
 
-        events_url = f"{POSTHOG_HOST}/api/projects/{POSTHOG_PROJECT_ID}/events"
+        events_url = f"{host}/api/projects/{project_id}/events"
         params = {
             "after": (datetime.now(timezone.utc) - timedelta(days=1)).isoformat(),
             "limit": "100",
@@ -201,17 +232,7 @@ def fetch_posthog_metrics():
         elif response.status_code == 403:
             return None, "PostHog API error: 403 - Missing permissions or wrong project"
         elif response.status_code != 200:
-            # Return demo data if API fails
-            return {
-                "events_24h": 142,
-                "unique_users_24h": 37,
-                "page_views_24h": 89,
-                "custom_events_24h": 53,
-                "sessions_24h": 24,
-                "events_1h": 8,
-                "avg_events_per_user": 3.8,
-                "demo_mode": True,
-            }, None
+            return dict(DEMO_METRICS), None
 
         data = response.json()
         events = data.get("results", [])
@@ -284,182 +305,45 @@ def fetch_posthog_metrics():
         return None, "FETCH_ERROR"
 
 
-def fetch_classic_dashboard_stats():
-    """Fetch and format stats specifically for Classic dashboard"""
+def fetch_dashboard_stats(layout_name):
+    """Fetch and format stats for any dashboard layout."""
+    layout_info = LAYOUT_POSITION_MAPS[layout_name]
     metrics, error = fetch_posthog_metrics()
 
     if error:
         return None, error
 
     config = config_manager.get_config()
-    layout_config = config.get("display", {}).get("metrics", {}).get("classic", {})
+    layout_config = config.get("display", {}).get("metrics", {}).get(layout_name, {})
 
-    response = {"demo_mode": metrics.get("demo_mode", False), "device_ip": get_device_ip()}
+    response = {"demo_mode": metrics.get("demo_mode", False)}
 
-    # Add positioned metrics with labels
-    for position in ["top", "left", "right"]:
-        if position in layout_config:
-            metric_config = layout_config[position]
-            if metric_config.get("enabled"):
-                metric_type = metric_config.get("type")
-                label = metric_config.get("label") or get_default_metric_label(metric_type)
-                value = metrics.get(metric_type, 0)
-                response[position] = format_metric_object(value, label)
+    if layout_info["extras"].get("lastUpdated"):
+        response["lastUpdated"] = datetime.now(timezone.utc).isoformat()
+    if layout_info["extras"].get("recent_events"):
+        response["recent_events"] = metrics.get("recent_events", [])
 
-    return response, None
-
-
-def fetch_modern_dashboard_stats():
-    """Fetch and format stats specifically for Modern dashboard"""
-    metrics, error = fetch_posthog_metrics()
-
-    if error:
-        return None, error
-
-    config = config_manager.get_config()
-    layout_config = config.get("display", {}).get("metrics", {}).get("modern", {})
-
-    response = {
-        "demo_mode": metrics.get("demo_mode", False),
-        "device_ip": get_device_ip(),
-        "lastUpdated": datetime.now(timezone.utc).isoformat(),
-    }
-
-    # Map positions to response keys
-    position_map = {
-        "top": "primary",
-        "left": "secondaryLeft",
-        "right": "secondaryRight",
-        "mini1": "miniStat1",
-        "mini2": "miniStat2",
-        "mini3": "miniStat3",
-    }
-
-    for config_pos, response_key in position_map.items():
+    for config_pos, response_key in layout_info["positions"].items():
         if config_pos in layout_config:
             metric_config = layout_config[config_pos]
             if metric_config.get("enabled"):
                 metric_type = metric_config.get("type")
                 label = metric_config.get("label") or get_default_metric_label(metric_type)
-                value = metrics.get(metric_type, 0)
-                response[response_key] = format_metric_object(value, label)
+                response[response_key] = {
+                    "label": label,
+                    "value": metrics.get(metric_type, 0),
+                }
 
     return response, None
 
 
-def fetch_analytics_dashboard_stats():
-    """Fetch and format stats specifically for Analytics dashboard"""
-    metrics, error = fetch_posthog_metrics()
+@app.route("/api/stats/<layout>")
+def get_layout_stats(layout):
+    """Get stats for a specific dashboard layout."""
+    if layout not in LAYOUT_POSITION_MAPS:
+        return jsonify({"error": f"Unknown layout: {layout}"}), 404
 
-    if error:
-        return None, error
-
-    config = config_manager.get_config()
-    layout_config = config.get("display", {}).get("metrics", {}).get("analytics", {})
-
-    response = {
-        "demo_mode": metrics.get("demo_mode", False),
-        "device_ip": get_device_ip(),
-        "lastUpdated": datetime.now(timezone.utc).isoformat(),
-    }
-
-    # Add all Analytics positions
-    for position in ["center", "top", "left", "right", "bottom", "stat1", "stat2", "stat3"]:
-        if position in layout_config:
-            metric_config = layout_config[position]
-            if metric_config.get("enabled"):
-                metric_type = metric_config.get("type")
-                label = metric_config.get("label") or get_default_metric_label(metric_type)
-                value = metrics.get(metric_type, 0)
-                response[position] = format_metric_object(value, label)
-
-    return response, None
-
-
-def fetch_executive_dashboard_stats():
-    """Fetch and format stats specifically for Executive dashboard"""
-    metrics, error = fetch_posthog_metrics()
-
-    if error:
-        return None, error
-
-    config = config_manager.get_config()
-    layout_config = config.get("display", {}).get("metrics", {}).get("executive", {})
-
-    response = {
-        "demo_mode": metrics.get("demo_mode", False),
-        "device_ip": get_device_ip(),
-        "lastUpdated": datetime.now(timezone.utc).isoformat(),
-        "recent_events": metrics.get("recent_events", []),
-    }
-
-    # Map positions to response keys with camelCase
-    position_map = {
-        "north": "north",
-        "east": "east",
-        "south": "south",
-        "west": "west",
-        "northeast": "northEast",
-        "southeast": "southEast",
-        "southwest": "southWest",
-        "northwest": "northWest",
-    }
-
-    for config_pos, response_key in position_map.items():
-        if config_pos in layout_config:
-            metric_config = layout_config[config_pos]
-            if metric_config.get("enabled"):
-                metric_type = metric_config.get("type")
-                label = metric_config.get("label") or get_default_metric_label(metric_type)
-                value = metrics.get(metric_type, 0)
-                response[response_key] = format_metric_object(value, label)
-
-    return response, None
-
-
-@app.route("/api/stats/classic")
-def get_classic_stats():
-    """Get stats for Classic dashboard"""
-    stats, error = fetch_classic_dashboard_stats()
-
-    if error:
-        if error == "NETWORK_ERROR":
-            return jsonify({"error": "network_lost", "redirect": "/setup"}), 503
-        return jsonify({"error": error}), 500
-
-    return jsonify(stats)
-
-
-@app.route("/api/stats/modern")
-def get_modern_stats():
-    """Get stats for Modern dashboard"""
-    stats, error = fetch_modern_dashboard_stats()
-
-    if error:
-        if error == "NETWORK_ERROR":
-            return jsonify({"error": "network_lost", "redirect": "/setup"}), 503
-        return jsonify({"error": error}), 500
-
-    return jsonify(stats)
-
-
-@app.route("/api/stats/analytics")
-def get_analytics_stats():
-    """Get stats for Analytics dashboard"""
-    stats, error = fetch_analytics_dashboard_stats()
-
-    if error:
-        if error == "NETWORK_ERROR":
-            return jsonify({"error": "network_lost", "redirect": "/setup"}), 503
-        return jsonify({"error": error}), 500
-
-    return jsonify(stats)
-
-
-@app.route("/api/stats/executive")
-def get_executive_stats():
-    """Get stats for Executive dashboard"""
-    stats, error = fetch_executive_dashboard_stats()
+    stats, error = fetch_dashboard_stats(layout)
 
     if error:
         if error == "NETWORK_ERROR":
@@ -471,167 +355,16 @@ def get_executive_stats():
 
 @app.route("/api/stats")
 def get_stats():
-    """Get basic DataOrb statistics"""
-    # Get optional layout parameter to determine which metrics to fetch
-    layout = request.args.get("layout", None)
+    """Get all PostHog metrics (layout-agnostic)."""
+    metrics, error = fetch_posthog_metrics()
 
-    # Get current PostHog configuration
-    POSTHOG_API_KEY, POSTHOG_PROJECT_ID, POSTHOG_HOST = get_posthog_config()
+    if error:
+        if error == "NETWORK_ERROR":
+            return jsonify({"error": "network_lost", "redirect": "/setup"}), 503
+        return jsonify({"error": error}), 500
 
-    if not POSTHOG_API_KEY or not POSTHOG_PROJECT_ID:
-        return jsonify({"error": "PostHog credentials not configured"})
-
-    try:
-        headers = {
-            "Authorization": f"Bearer {POSTHOG_API_KEY}",
-            "Content-Type": "application/json",
-        }
-
-        # Get events for last 24 hours (or 7 days if no recent events)
-        events_url = f"{POSTHOG_HOST}/api/projects/{POSTHOG_PROJECT_ID}/events"
-
-        # First try last 24 hours
-        params = {
-            "after": (datetime.now(timezone.utc) - timedelta(days=1)).isoformat(),
-            "limit": "100",
-        }
-
-        response = requests.get(events_url, headers=headers, params=params)
-
-        if response.status_code == 401:
-            return jsonify({"error": "PostHog API error: 401 - Invalid API key"}), 401
-        elif response.status_code == 403:
-            return (
-                jsonify({"error": "PostHog API error: 403 - Missing permissions or wrong project"}),
-                403,
-            )
-        elif response.status_code != 200:
-            # If PostHog API is having issues, return demo data
-            if response.status_code == 500:
-                return jsonify(
-                    {
-                        "events_24h": 142,
-                        "unique_users_24h": 37,
-                        "page_views_24h": 89,
-                        "custom_events_24h": 53,
-                        "sessions_24h": 24,
-                        "events_1h": 8,
-                        "avg_events_per_user": 3.8,
-                        "recent_events": [
-                            {
-                                "event": "$pageview",
-                                "timestamp": datetime.now(timezone.utc).isoformat(),
-                            },
-                            {
-                                "event": "button_click",
-                                "timestamp": (
-                                    datetime.now(timezone.utc) - timedelta(minutes=5)
-                                ).isoformat(),
-                            },
-                            {
-                                "event": "$pageview",
-                                "timestamp": (
-                                    datetime.now(timezone.utc) - timedelta(minutes=12)
-                                ).isoformat(),
-                            },
-                        ],
-                        "last_updated": datetime.now(timezone.utc).isoformat(),
-                        "demo_mode": True,
-                    }
-                )
-            return (
-                jsonify({"error": f"PostHog API error: {response.status_code}"}),
-                response.status_code,
-            )
-
-        data = response.json()
-        events = data.get("results", [])
-
-        # If no events in last 24 hours, try last 7 days
-        if not events:
-            params["after"] = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
-            response = requests.get(events_url, headers=headers, params=params)
-            if response.status_code == 200:
-                data = response.json()
-                events = data.get("results", [])
-
-        # Calculate statistics
-        events_24h = len(events)
-        unique_users = len(set(e.get("distinct_id", "") for e in events))
-        page_views = len([e for e in events if e.get("event") == "$pageview"])
-        custom_events = len(
-            [e for e in events if e.get("event") not in ["$pageview", "$pageleave"]]
-        )
-
-        # Get sessions count (unique session IDs)
-        sessions = len(
-            set(
-                e.get("properties", {}).get("$session_id", "")
-                for e in events
-                if e.get("properties", {}).get("$session_id")
-            )
-        )
-
-        # Get events from last hour
-        one_hour_ago = datetime.now(timezone.utc) - timedelta(hours=1)
-        events_1h = len(
-            [
-                e
-                for e in events
-                if datetime.fromisoformat(e.get("timestamp", "").replace("Z", "+00:00"))
-                > one_hour_ago
-            ]
-        )
-
-        # Calculate average events per user
-        avg_events_per_user = round(events_24h / unique_users, 1) if unique_users > 0 else 0
-
-        # Get recent events for activity feed
-        recent_events = []
-        for event in events[:10]:  # Last 10 events
-            recent_events.append(
-                {
-                    "event": event.get("event", "Unknown"),
-                    "user": event.get("distinct_id", "Anonymous")[:8],
-                    "timestamp": event.get("timestamp", ""),
-                    "properties": event.get("properties", {}),
-                }
-            )
-
-        # Create all metrics dictionary
-        all_metrics = {
-            "events_24h": events_24h,
-            "unique_users_24h": unique_users,
-            "page_views_24h": page_views,
-            "custom_events_24h": custom_events,
-            "sessions_24h": sessions,
-            "events_1h": events_1h,
-            "avg_events_per_user": avg_events_per_user,
-        }
-
-        # Determine which metrics to include based on layout
-        if layout:
-            # For backwards compatibility with old endpoints
-            # Simply return all metrics with recent events
-            response_data = {
-                **all_metrics,
-                "recent_events": recent_events,
-                "last_updated": datetime.now(timezone.utc).isoformat(),
-            }
-
-        else:
-            # No layout specified, return all metrics (backward compatibility)
-            response_data = {
-                **all_metrics,
-                "recent_events": recent_events,
-                "last_updated": datetime.now(timezone.utc).isoformat(),
-            }
-
-        return jsonify(response_data)
-
-    except Exception as e:
-        logger.error("Stats endpoint error: %s", e)
-        return jsonify({"error": "Failed to fetch analytics data"}), 500
+    metrics["last_updated"] = datetime.now(timezone.utc).isoformat()
+    return jsonify(metrics)
 
 
 @app.route("/api/health")
@@ -866,14 +599,14 @@ def network_status():
 
 # OTA Update endpoints
 @app.route("/api/admin/ota/status")
+@require_admin
 def get_ota_status():
-    """Get OTA update status"""
     return jsonify(ota_manager.get_status())
 
 
 @app.route("/api/admin/ota/check")
+@require_admin
 def check_for_updates():
-    """Check for available OTA updates"""
     return jsonify(ota_manager.check_for_updates())
 
 
@@ -881,7 +614,7 @@ def check_for_updates():
 @require_admin
 def apply_update():
     """Apply OTA update"""
-    result = ota_manager.apply_update()
+    result = ota_manager.perform_update()
     return jsonify(result)
 
 
@@ -916,15 +649,15 @@ def switch_branch():
 
 
 @app.route("/api/admin/ota/branches")
+@require_admin
 def get_branches():
-    """Get available Git branches"""
     return jsonify(ota_manager.get_available_branches())
 
 
 @app.route("/api/admin/ota/backups")
+@require_admin
 def get_backups():
-    """Get list of available backups"""
-    return jsonify(ota_manager.get_backups())
+    return jsonify(ota_manager.list_backups())
 
 
 @app.route("/api/admin/ota/rollback", methods=["POST"])
@@ -954,15 +687,15 @@ def update_cron():
 
 
 @app.route("/api/admin/ota/test-connection")
+@require_admin
 def test_git_connection():
-    """Test Git connectivity"""
     return jsonify(ota_manager.test_git_connection())
 
 
 @app.route("/api/admin/ota/history")
+@require_admin
 def get_update_history():
-    """Get OTA update history"""
-    return jsonify(ota_manager.get_update_history())
+    return jsonify(ota_manager.get_logs())
 
 
 @app.route("/api/admin/ota/clean-cache", methods=["POST"])
@@ -1044,9 +777,6 @@ def delete_custom_theme(theme_id):
 @app.route("/api/admin/config")
 @require_admin
 def get_config():
-    """Get device configuration"""
-    import socket
-
     config = config_manager.get_config()
 
     # Add actual device IP address
@@ -1062,8 +792,7 @@ def get_config():
             config["network"] = {}
         config["network"]["ip_address"] = ip_address
     except (OSError, socket.error):
-        # Fallback to localhost if can't determine IP
-        config["network"] = {"ip_address": "localhost"}
+        config.setdefault("network", {})["ip_address"] = "localhost"
 
     return jsonify(config)
 
@@ -1071,10 +800,13 @@ def get_config():
 @app.route("/api/admin/config", methods=["POST"])
 @require_admin
 def update_config():
-    """Update device configuration"""
     data = request.get_json()
 
-    # Update config file
+    allowed_keys = {"posthog", "display", "network", "advanced", "ota", "custom_themes"}
+    rejected = set(data.keys()) - allowed_keys
+    if rejected:
+        return jsonify({"success": False, "error": f"Unknown config keys: {rejected}"}), 400
+
     if not config_manager.update_config(data):
         return jsonify({"success": False, "error": "Failed to update config"}), 500
 
@@ -1110,10 +842,8 @@ def validate_posthog_config():
     project_id = data.get("project_id")
     host = data.get("host", "https://app.posthog.com")
 
-    # SSRF protection: only allow known PostHog hosts
-    from urllib.parse import urlparse
     parsed = urlparse(host)
-    if not parsed.hostname or not parsed.hostname.endswith("posthog.com"):
+    if not parsed.hostname or not (parsed.hostname == "posthog.com" or parsed.hostname.endswith(".posthog.com")):
         return jsonify({"valid": False, "error": "Host must be a posthog.com domain"}), 400
 
     try:
@@ -1127,38 +857,38 @@ def validate_posthog_config():
         response = requests.get(test_url, headers=headers, timeout=10)
 
         if response.status_code == 200:
-            return jsonify({"valid": True, "message": "✅ PostHog connection successful!"})
+            return jsonify({"valid": True, "message": "PostHog connection successful"})
         elif response.status_code == 401:
-            return jsonify({"valid": False, "error": "❌ Invalid API key"}), 401
+            return jsonify({"valid": False, "error": "Invalid API key"}), 401
         elif response.status_code == 403:
             return (
                 jsonify(
-                    {"valid": False, "error": "❌ API key doesn't have access to this project"}
+                    {"valid": False, "error": "API key doesn't have access to this project"}
                 ),
                 403,
             )
         elif response.status_code == 404:
             return (
-                jsonify({"valid": False, "error": "❌ Project not found. Check your Project ID"}),
+                jsonify({"valid": False, "error": "Project not found. Check your Project ID"}),
                 404,
             )
         else:
             return (
-                jsonify({"valid": False, "error": f"❌ PostHog API error: {response.status_code}"}),
+                jsonify({"valid": False, "error": f"PostHog API error: {response.status_code}"}),
                 response.status_code,
             )
 
     except requests.exceptions.Timeout:
         return (
             jsonify(
-                {"valid": False, "error": "❌ Connection timeout. Check your network or host URL"}
+                {"valid": False, "error": "Connection timeout. Check your network or host URL"}
             ),
             408,
         )
     except requests.exceptions.ConnectionError:
         return (
             jsonify(
-                {"valid": False, "error": "❌ Could not connect to PostHog. Check the host URL"}
+                {"valid": False, "error": "Could not connect to PostHog. Check the host URL"}
             ),
             503,
         )
@@ -1170,39 +900,9 @@ def validate_posthog_config():
 @app.route("/api/admin/config", methods=["DELETE"])
 @require_admin
 def delete_config():
-    """Delete device configuration completely"""
+    """Clear PostHog credentials from the device config."""
     try:
-        # Clear configuration from memory
-        config = config_manager.get_config()
-        if "posthog" in config:
-            config["posthog"] = {}
-            config_manager.update_config(config)
-
-        # Clear .env file
-        env_file = os.path.join(os.path.dirname(__file__), ".env")
-        env_lines = []
-
-        # Read existing .env file if it exists and remove PostHog lines
-        if os.path.exists(env_file):
-            with open(env_file, "r") as f:
-                for line in f:
-                    # Skip PostHog-related lines
-                    if not line.startswith(
-                        ("POSTHOG_API_KEY=", "POSTHOG_PROJECT_ID=", "POSTHOG_HOST=")
-                    ):
-                        env_lines.append(line.rstrip())
-
-        # Write updated .env file (essentially empty or with other configs)
-        with open(env_file, "w") as f:
-            if env_lines:
-                f.write("\n".join(env_lines) + "\n")
-            else:
-                # Write empty placeholders
-                f.write("# DataOrb configuration removed\n")
-                f.write("POSTHOG_API_KEY=\n")
-                f.write("POSTHOG_PROJECT_ID=\n")
-                f.write("POSTHOG_HOST=\n")
-
+        config_manager.update_config({"posthog": {"api_key": "", "project_id": "", "host": "https://app.posthog.com"}})
         return jsonify({"success": True, "message": "Configuration deleted successfully"})
     except Exception as e:
         logger.error("Config deletion error: %s", e)
@@ -1297,11 +997,11 @@ if __name__ == "__main__":
     try:
         boot_result = ota_manager.perform_boot_update()
         if boot_result.get("error"):
-            logger.warning(f"Boot update warning: {boot_result['error']}")
+            logger.warning("Boot update warning: %s", boot_result["error"])
         elif boot_result.get("success"):
             logger.info("Boot update completed successfully")
     except Exception as e:
-        logger.error(f"Boot update check failed: {e}")
+        logger.error("Boot update check failed: %s", e)
 
     # Check if we're in debug mode
     debug_mode = os.environ.get("FLASK_DEBUG", "0") == "1"

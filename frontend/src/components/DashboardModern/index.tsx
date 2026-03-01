@@ -1,123 +1,52 @@
 import React, { useState, useMemo } from 'react';
-import { 
-  useTheme, 
-  useKeyboardNavigation, 
-  useNetworkStatus, 
+import {
+  useTheme,
+  useKeyboardNavigation,
+  useNetworkStatus,
   useDisplayConfig,
   useInterval,
-  useModernDashboard
+  useDashboardStats,
+  useThemeData
 } from '../../hooks';
+import { ModernDashboardStats } from '../../types';
 import { ErrorDisplay } from '../common/ErrorDisplay';
-import { 
-  formatTime, 
-  formatDate, 
-  formatNumber, 
-  calculateMockTrend,
-  formatPercentage
-} from '../../utils';
+import { formatTime, formatDate, formatNumber } from '../../utils';
 import { API_ENDPOINTS, REFRESH_INTERVALS } from '../../constants';
 import './styles.css';
-import '../../themes.css';
 
 const DashboardModern: React.FC = () => {
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [themeData, setThemeData] = useState<any>(null);
-  
-  // Check for loading parameter in URL
+
   const urlParams = new URLSearchParams(window.location.search);
   const forceLoading = urlParams.get('loading') === 'true';
-  
-  // Custom hooks
+
   useKeyboardNavigation();
   const { error: networkError } = useNetworkStatus();
   const { theme, refreshInterval } = useDisplayConfig();
-  const { 
-    stats, 
-    loading, 
-    error: statsError, 
-    refetch,
-    primaryMetric: primaryMetricData,
-    secondaryLeftMetric: secondaryLeftData,
-    secondaryRightMetric: secondaryRightData,
-    miniStat1,
-    miniStat2,
-    miniStat3,
-    demoMode,
-    lastUpdated
-  } = useModernDashboard(refreshInterval);
+  const { stats, loading, error: statsError, refetch } = useDashboardStats<ModernDashboardStats>(
+    API_ENDPOINTS.STATS_MODERN,
+    refreshInterval
+  );
   useTheme(theme);
+  const themeData = useThemeData(theme);
 
-  // Update time every second
   useInterval(() => setCurrentTime(new Date()), REFRESH_INTERVALS.TIME);
-
-  // Load theme data for logo
-  React.useEffect(() => {
-    // Check for embedded theme data first
-    if ((window as any).__INITIAL_DATA__?.theme) {
-      setThemeData((window as any).__INITIAL_DATA__.theme);
-      // Clear the initial data after using it
-      delete (window as any).__INITIAL_DATA__.theme;
-      return;
-    }
-    
-    const loadThemeData = async () => {
-      if (!theme || ['dark', 'light'].includes(theme)) {
-        setThemeData(null);
-        return;
-      }
-      
-      try {
-        const response = await fetch(API_ENDPOINTS.THEME_BY_ID(theme));
-        if (response.ok) {
-          const data = await response.json();
-          setThemeData(data);
-        }
-      } catch {
-        // Silently fail
-      }
-    };
-    
-    loadThemeData();
-  }, [theme]);
-
-  // Memoized metric data with trends
-  const primaryMetric = useMemo(() => {
-    if (!primaryMetricData) return null;
-    return {
-      ...primaryMetricData,
-      trend: calculateMockTrend(),
-    };
-  }, [primaryMetricData]);
 
   const secondaryMetrics = useMemo(() => {
     const metrics = [];
-    if (secondaryLeftData) {
-      metrics.push({
-        position: 'left',
-        ...secondaryLeftData,
-        trend: calculateMockTrend(),
-      });
-    }
-    if (secondaryRightData) {
-      metrics.push({
-        position: 'right',
-        ...secondaryRightData,
-        trend: calculateMockTrend(),
-      });
-    }
+    if (stats?.secondaryLeft) metrics.push({ position: 'left', ...stats.secondaryLeft });
+    if (stats?.secondaryRight) metrics.push({ position: 'right', ...stats.secondaryRight });
     return metrics;
-  }, [secondaryLeftData, secondaryRightData]);
+  }, [stats?.secondaryLeft, stats?.secondaryRight]);
 
-  // Additional metrics for mini stats bar
   const miniStats = useMemo(() => {
-    const stats = [];
-    if (miniStat1) stats.push(miniStat1);
-    if (miniStat2) stats.push(miniStat2);
-    if (miniStat3) stats.push(miniStat3);
-    return stats;
-  }, [miniStat1, miniStat2, miniStat3]);
+    const items = [];
+    if (stats?.miniStat1) items.push(stats.miniStat1);
+    if (stats?.miniStat2) items.push(stats.miniStat2);
+    if (stats?.miniStat3) items.push(stats.miniStat3);
+    return items;
+  }, [stats?.miniStat1, stats?.miniStat2, stats?.miniStat3]);
 
-  // WiFi setup mode
   if (networkError === 'wifi-setup-mode') {
     return (
       <div className="dashboard-modern">
@@ -128,7 +57,6 @@ const DashboardModern: React.FC = () => {
     );
   }
 
-  // Loading state (or forced loading for testing)
   if (loading || forceLoading) {
     return (
       <div className="dashboard-modern">
@@ -144,7 +72,6 @@ const DashboardModern: React.FC = () => {
     );
   }
 
-  // Error state
   if (statsError) {
     return (
       <div className="dashboard-modern">
@@ -161,7 +88,6 @@ const DashboardModern: React.FC = () => {
         <div className="ring-decoration outer" />
         <div className="ring-decoration inner" />
 
-        {/* Header Section */}
         <div className="header-section">
           <div className="brand">
             {themeData?.logo ? (
@@ -182,43 +108,28 @@ const DashboardModern: React.FC = () => {
           </div>
         </div>
 
-        {/* Main Metrics Ring */}
         <div className="metrics-ring">
-          {/* Primary Metric - Center */}
-          {primaryMetric && (
+          {stats?.primary && (
             <div className="metric-primary">
-              <div className="metric-value">{formatNumber(primaryMetric.value)}</div>
-              <div className="metric-label">{primaryMetric.label}</div>
-              {primaryMetric.trend !== undefined && (
-                <div className={`metric-trend ${primaryMetric.trend > 0 ? 'up' : 'down'}`}>
-                  <span className="trend-icon">{primaryMetric.trend > 0 ? '+' : '-'}</span>
-                  <span>{formatPercentage(Math.abs(primaryMetric.trend))}</span>
-                </div>
-              )}
+              <div className="metric-value">{formatNumber(stats.primary.value)}</div>
+              <div className="metric-label">{stats.primary.label}</div>
             </div>
           )}
 
-          {/* Secondary Metrics */}
-          {secondaryMetrics.map((metric) => metric && (
-            <div 
+          {secondaryMetrics.map((metric) => (
+            <div
               key={metric.position}
               className="metric-secondary"
-              data-position={metric.position === 'left' ? 'left' : 'right'}
+              data-position={metric.position}
             >
               <div className="metric-value">{formatNumber(metric.value)}</div>
               <div className="metric-label">{metric.label}</div>
-              {metric.trend !== undefined && (
-                <div className={`metric-trend-mini ${metric.trend > 0 ? 'up' : 'down'}`}>
-                  {metric.trend > 0 ? '+' : ''}{formatPercentage(metric.trend)}
-                </div>
-              )}
             </div>
           ))}
         </div>
 
-        {/* Mini Stats Bar */}
         <div className="mini-stats-bar">
-          {miniStats.map((stat) => stat && (
+          {miniStats.map((stat) => (
             <div key={stat.label} className="mini-stat">
               <div className="mini-label">{stat.label}</div>
               <div className="mini-value">{formatNumber(stat.value)}</div>
@@ -226,14 +137,13 @@ const DashboardModern: React.FC = () => {
           ))}
         </div>
 
-        {/* Status Footer */}
         <div className="status-footer">
           <div className="status-indicator">
             <span className={`status-dot ${stats ? 'live' : ''}`} />
-            <span>{demoMode ? 'Demo' : 'Live'}</span>
+            <span>{stats?.demo_mode ? 'Demo' : 'Live'}</span>
           </div>
           <div className="last-update">
-            Updated {new Date(lastUpdated || Date.now()).toLocaleTimeString()}
+            Updated {new Date(stats?.lastUpdated || Date.now()).toLocaleTimeString()}
           </div>
         </div>
       </div>

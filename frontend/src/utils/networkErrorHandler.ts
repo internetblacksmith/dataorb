@@ -1,16 +1,11 @@
-/**
- * Handle network error responses from the API
- * Checks for network_lost error and redirects to setup page
- */
-export const handleNetworkError = (data: any, setError: (error: string | null) => void, setStats: (stats: any) => void) => {
-  if (data.error === 'network_lost' && data.redirect) {
-    // Show message briefly then redirect
+export const handleNetworkError = (data: Record<string, unknown>, setError: (error: string | null) => void, setStats: (stats: null) => void) => {
+  if (data.error === 'network_lost' && typeof data.redirect === 'string' && data.redirect.startsWith('/')) {
     setError('Network connection lost. Starting setup mode...');
     setStats(null);
     setTimeout(() => {
-      window.location.href = data.redirect;
+      window.location.href = data.redirect as string;
     }, 2000);
-    return true; // Handled
+    return true;
   }
-  return false; // Not a network error
+  return false;
 };

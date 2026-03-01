@@ -16,11 +16,11 @@ export const DisplayConfig: React.FC<DisplayConfigProps> = React.memo(({
   const handleMetricChange = (
     position: string,
     field: 'enabled' | 'type' | 'label',
-    value: any
+    value: string | boolean
   ) => {
     const currentLayout = config.display?.layout || 'classic';
     const currentMetrics = config.display?.metrics || {};
-    const layoutMetrics = (currentMetrics as any)[currentLayout] || {};
+    const layoutMetrics = (currentMetrics as Record<string, Record<string, Record<string, string | boolean>>>)[currentLayout] || {};
     
     onChange({
       display: {

@@ -36,10 +36,11 @@ export const useDisplayConfig = () => {
     fetchDisplayConfig();
   }, [fetchDisplayConfig]);
 
-  // Listen for config changes via BroadcastChannel
   useEffect(() => {
+    if (!('BroadcastChannel' in window)) return;
+
     const channel = new BroadcastChannel('config-updates');
-    
+
     const handleMessage = (event: MessageEvent) => {
       if (event.data.type === 'displayConfigUpdated' && event.data.config) {
         setDisplayConfig(event.data.config);
@@ -47,7 +48,7 @@ export const useDisplayConfig = () => {
     };
 
     channel.addEventListener('message', handleMessage);
-    
+
     return () => {
       channel.removeEventListener('message', handleMessage);
       channel.close();

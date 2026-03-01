@@ -1,7 +1,8 @@
-import json
-import os
-import logging
+import copy
 import hashlib
+import json
+import logging
+import os
 from typing import Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
@@ -89,7 +90,7 @@ class ConfigManager:
                     # Merge with defaults to ensure all keys exist
                     return self._merge_configs(self.default_config, loaded_config)
             except Exception as e:
-                logger.error(f"Error loading config: {e}")
+                logger.error("Error loading config: %s", e)
                 return self.default_config.copy()
         else:
             # Create new config file with defaults
@@ -97,8 +98,7 @@ class ConfigManager:
             return self.default_config.copy()
 
     def _merge_configs(self, default: Dict, loaded: Dict) -> Dict:
-        """Recursively merge loaded config with defaults"""
-        result = default.copy()
+        result = copy.deepcopy(default)
         for key, value in loaded.items():
             if key in result and isinstance(result[key], dict) and isinstance(value, dict):
                 result[key] = self._merge_configs(result[key], value)
@@ -114,12 +114,11 @@ class ConfigManager:
                 json.dump(config_to_save, f, indent=2)
             return True
         except Exception as e:
-            logger.error(f"Error saving config: {e}")
+            logger.error("Error saving config: %s", e)
             return False
 
     def get_config(self) -> Dict[str, Any]:
-        """Get current configuration"""
-        return self.config
+        return copy.deepcopy(self.config)
 
     def update_config(self, updates: Dict[str, Any]) -> bool:
         """Update configuration with new values"""
@@ -128,7 +127,7 @@ class ConfigManager:
             self.config = self._merge_configs(self.config, updates)
             return self.save_config()
         except Exception as e:
-            logger.error(f"Error updating config: {e}")
+            logger.error("Error updating config: %s", e)
             return False
 
     def get_posthog_config(self) -> Dict[str, str]:
@@ -163,7 +162,7 @@ class ConfigManager:
             self.config["ota"].update(updates)
             return self.save_config()
         except Exception as e:
-            logger.error(f"Error updating OTA config: {e}")
+            logger.error("Error updating OTA config: %s", e)
             return False
 
     def get_custom_themes(self) -> Dict[str, Any]:
@@ -185,7 +184,7 @@ class ConfigManager:
             self.config["custom_themes"][theme_id] = theme_data
             return self.save_config()
         except Exception as e:
-            logger.error(f"Error adding custom theme: {e}")
+            logger.error("Error adding custom theme: %s", e)
             return False
 
     def delete_custom_theme(self, theme_id: str) -> bool:
@@ -196,5 +195,5 @@ class ConfigManager:
                 return self.save_config()
             return False
         except Exception as e:
-            logger.error(f"Error deleting custom theme: {e}")
+            logger.error("Error deleting custom theme: %s", e)
             return False

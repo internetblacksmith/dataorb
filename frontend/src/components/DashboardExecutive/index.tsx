@@ -1,157 +1,55 @@
 import React, { useState, useMemo } from 'react';
-import { 
-  useTheme, 
-  useKeyboardNavigation, 
-  useNetworkStatus, 
+import {
+  useTheme,
+  useKeyboardNavigation,
+  useNetworkStatus,
   useDisplayConfig,
   useInterval,
-  useExecutiveDashboard
+  useDashboardStats,
+  useThemeData
 } from '../../hooks';
+import { ExecutiveDashboardStats } from '../../types';
 import { ErrorDisplay } from '../common/ErrorDisplay';
-import { 
-  formatTime, 
-  formatDate, 
-  formatNumber, 
-  calculateMockTrend,
-  formatPercentage
-} from '../../utils';
-import { REFRESH_INTERVALS, API_ENDPOINTS } from '../../constants';
-import { Theme } from '../../types';
+import { formatTime, formatDate, formatNumber } from '../../utils';
+import { API_ENDPOINTS, REFRESH_INTERVALS } from '../../constants';
 import './styles.css';
-import '../../themes.css';
 
 const DashboardExecutive: React.FC = () => {
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [themeData, setThemeData] = useState<Theme | null>(null);
-  
-  // Check for loading parameter in URL
+
   const urlParams = new URLSearchParams(window.location.search);
   const forceLoading = urlParams.get('loading') === 'true';
-  
-  // Custom hooks
+
   useKeyboardNavigation();
   const { networkStatus, error: networkError } = useNetworkStatus();
   const { theme, refreshInterval } = useDisplayConfig();
-  const { 
-    stats, 
-    loading, 
-    error: statsError, 
-    refetch,
-    northMetric,
-    eastMetric,
-    southMetric,
-    westMetric,
-    northEastMetric,
-    southEastMetric,
-    southWestMetric,
-    northWestMetric,
-    demoMode
-  } = useExecutiveDashboard(refreshInterval);
+  const { stats, loading, error: statsError, refetch } = useDashboardStats<ExecutiveDashboardStats>(
+    API_ENDPOINTS.STATS_EXECUTIVE,
+    refreshInterval
+  );
   useTheme(theme);
+  const themeData = useThemeData(theme);
 
-  // Update time every second
   useInterval(() => setCurrentTime(new Date()), REFRESH_INTERVALS.TIME);
 
-  // Load theme data for logo
-  React.useEffect(() => {
-    // Check for embedded theme data first
-    if ((window as any).__INITIAL_DATA__?.theme) {
-      setThemeData((window as any).__INITIAL_DATA__.theme);
-      // Clear the initial data after using it
-      delete (window as any).__INITIAL_DATA__.theme;
-      return;
-    }
-    
-    const loadThemeData = async () => {
-      if (!theme || ['dark', 'light'].includes(theme)) {
-        setThemeData(null);
-        return;
-      }
-      
-      try {
-        const response = await fetch(API_ENDPOINTS.THEME_BY_ID(theme));
-        if (response.ok) {
-          const data = await response.json();
-          setThemeData(data);
-        }
-      } catch {
-        // Silently fail
-      }
-    };
-    
-    loadThemeData();
-  }, [theme]);
-
-  // Memoized primary metrics
   const primaryMetrics = useMemo(() => {
     const metrics = [];
-    
-    if (northMetric) {
-      metrics.push({
-        position: 'north',
-        ...northMetric,
-        trend: calculateMockTrend(),
-      });
-    }
-    if (eastMetric) {
-      metrics.push({
-        position: 'east',
-        ...eastMetric,
-        trend: calculateMockTrend(),
-      });
-    }
-    if (southMetric) {
-      metrics.push({
-        position: 'south',
-        ...southMetric,
-        trend: calculateMockTrend(),
-      });
-    }
-    if (westMetric) {
-      metrics.push({
-        position: 'west',
-        ...westMetric,
-        trend: calculateMockTrend(),
-      });
-    }
-    
+    if (stats?.north) metrics.push({ position: 'north', ...stats.north });
+    if (stats?.east) metrics.push({ position: 'east', ...stats.east });
+    if (stats?.south) metrics.push({ position: 'south', ...stats.south });
+    if (stats?.west) metrics.push({ position: 'west', ...stats.west });
     return metrics;
-  }, [northMetric, eastMetric, southMetric, westMetric]);
+  }, [stats?.north, stats?.east, stats?.south, stats?.west]);
 
-  // Memoized secondary metrics (diagonal positions)
   const secondaryMetrics = useMemo(() => {
     const metrics = [];
-    
-    if (northEastMetric) {
-      metrics.push({
-        position: 'northeast',
-        ...northEastMetric,
-      });
-    }
-    if (southEastMetric) {
-      metrics.push({
-        position: 'southeast',
-        ...southEastMetric,
-      });
-    }
-    if (southWestMetric) {
-      metrics.push({
-        position: 'southwest',
-        ...southWestMetric,
-      });
-    }
-    if (northWestMetric) {
-      metrics.push({
-        position: 'northwest',
-        ...northWestMetric,
-      });
-    }
-    
+    if (stats?.northEast) metrics.push({ position: 'northeast', ...stats.northEast });
+    if (stats?.southEast) metrics.push({ position: 'southeast', ...stats.southEast });
+    if (stats?.southWest) metrics.push({ position: 'southwest', ...stats.southWest });
+    if (stats?.northWest) metrics.push({ position: 'northwest', ...stats.northWest });
     return metrics;
-  }, [northEastMetric, southEastMetric, southWestMetric, northWestMetric]);
+  }, [stats?.northEast, stats?.southEast, stats?.southWest, stats?.northWest]);
 
-
-  // WiFi setup mode
   if (networkError === 'wifi-setup-mode') {
     return (
       <div className="dashboard-executive">
@@ -160,7 +58,6 @@ const DashboardExecutive: React.FC = () => {
     );
   }
 
-  // Loading state (or forced loading for testing)
   if (loading || forceLoading) {
     return (
       <div className="dashboard-executive">
@@ -172,7 +69,6 @@ const DashboardExecutive: React.FC = () => {
     );
   }
 
-  // Error state
   if (statsError) {
     return (
       <div className="dashboard-executive">
@@ -183,30 +79,25 @@ const DashboardExecutive: React.FC = () => {
 
   return (
     <div className="dashboard-executive">
-      {/* Time Display - Above Logo */}
       <div className="clock-container">
         <div className="time">{formatTime(currentTime)}</div>
       </div>
-      
-      {/* Date Display - Below Logo */}
+
       <div className="date-container">
         <div className="date">{formatDate(currentTime)}</div>
       </div>
 
-      {demoMode && (
+      {stats?.demo_mode && (
         <div className="demo-indicator">DEMO MODE</div>
       )}
 
-      {/* Main Orb Container */}
       <div className="orb-container">
-        {/* Orbital Decorations */}
         <div className="orbital-decoration">
           <div className="orbit orbit-1" />
           <div className="orbit orbit-2" />
           <div className="orbit orbit-3" />
         </div>
 
-        {/* Center Brand */}
         <div className="center-brand">
           {themeData?.logo ? (
             <img
@@ -219,22 +110,15 @@ const DashboardExecutive: React.FC = () => {
           )}
         </div>
 
-        {/* Primary Metrics Ring */}
         <div className="metrics-ring primary">
-          {primaryMetrics.map((metric) => metric && (
+          {primaryMetrics.map((metric) => (
             <div key={metric.position} className={`metric-card ${metric.position}`}>
               <div className="metric-value">{formatNumber(metric.value)}</div>
               <div className="metric-label">{metric.label}</div>
-              {metric.trend !== undefined && (
-                <div className={`metric-trend ${metric.trend > 0 ? 'up' : 'down'}`}>
-                  {metric.trend > 0 ? '↑' : '↓'} {formatPercentage(Math.abs(metric.trend))}
-                </div>
-              )}
             </div>
           ))}
         </div>
 
-        {/* Secondary Metrics Ring */}
         <div className="metrics-ring secondary">
           {secondaryMetrics.map((metric) => (
             <div key={metric.position} className={`metric-mini ${metric.position}`}>
@@ -246,7 +130,6 @@ const DashboardExecutive: React.FC = () => {
 
       </div>
 
-      {/* Status Bar */}
       <div className="status-bar">
         <div className="status-item">
           <span className={`status-dot ${stats ? 'active' : ''}`} />
@@ -259,7 +142,6 @@ const DashboardExecutive: React.FC = () => {
         </div>
       </div>
 
-      {/* Keyboard Hint */}
       <div className="keyboard-hint">
         Ctrl+Alt+[1-5] to switch views
       </div>

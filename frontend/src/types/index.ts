@@ -177,7 +177,6 @@ export interface Theme {
     statusDot: string;
   };
   logo?: string;
-  custom?: boolean;
   isCustom?: boolean;
 }
 
@@ -204,4 +203,4 @@ export interface AvailableMetric {
 // Utility types
 export type MetricPosition = 'top' | 'left' | 'right' | 'north' | 'south' | 'east' | 'west';
 export type DashboardLayout = 'classic' | 'modern' | 'analytics' | 'executive';
-export type ThemeMode = 'dark' | 'light' | string;
+export type ThemeMode = string;

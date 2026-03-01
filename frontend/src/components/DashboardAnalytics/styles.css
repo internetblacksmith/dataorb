@@ -371,16 +371,6 @@
   animation: pulse 2s infinite;
 }
 
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-  }
-
-  50% {
-    opacity: 0.5;
-  }
-}
-
 .dashboard-analytics .last-updated {
   font-size: 0.9em;
 }
@@ -404,12 +394,6 @@
   border-radius: 50%;
   animation: spin 1s linear infinite;
   margin: 0 auto 20px;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 
 .dashboard-analytics .loading-text {

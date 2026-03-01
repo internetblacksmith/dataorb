@@ -38,9 +38,3 @@
   font-size: 0.9em;
   text-align: center;
 }
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}

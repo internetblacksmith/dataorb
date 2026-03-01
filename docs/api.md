@@ -7,7 +7,8 @@ DataOrb provides a RESTful API for accessing analytics data and managing the dev
 ## Base URL
 
 ```
-http://<raspberry-pi-ip>:5000
+http://<raspberry-pi-ip>       # Production (port 80)
+http://<raspberry-pi-ip>:5000  # Development / fallback
 ```
 
 ## Endpoints
@@ -26,26 +27,24 @@ Returns PostHog analytics for the last 24 hours, formatted for the requested das
 **Example — Classic (`/api/stats/classic`):**
 ```json
 {
-  "top":   { "label": "Events",  "value": 1234 },
-  "left":  { "label": "Users",   "value": 5678 },
-  "right": { "label": "Devices", "value": 91011 },
-  "demo_mode": false,
-  "device_ip": "192.168.1.1"
+  "top":   { "label": "Events", "value": 1234 },
+  "left":  { "label": "Users",  "value": 56 },
+  "right": { "label": "Views",  "value": 89 },
+  "demo_mode": false
 }
 ```
 
 **Example — Modern (`/api/stats/modern`):**
 ```json
 {
-  "primary":        { "label": "Active Users",    "value": 1500 },
-  "secondaryLeft":  { "label": "Total Events",    "value": 3000 },
-  "secondaryRight": { "label": "Unique Devices",  "value": 4500 },
-  "miniStat1":      { "label": "New Signups",     "value": 200 },
-  "miniStat2":      { "label": "Errors",          "value": 50 },
-  "miniStat3":      { "label": "API Calls",       "value": 1200 },
+  "primary":        { "label": "Events",   "value": 1500 },
+  "secondaryLeft":  { "label": "Users",    "value": 3000 },
+  "secondaryRight": { "label": "Views",    "value": 4500 },
+  "miniStat1":      { "label": "Sessions", "value": 200 },
+  "miniStat2":      { "label": "Avg/User", "value": 3.8 },
+  "miniStat3":      { "label": "Events/h", "value": 12 },
   "demo_mode": false,
-  "device_ip": "192.168.1.1",
-  "lastUpdated": "2023-10-01T12:00:00Z"
+  "lastUpdated": "2024-01-20T12:00:00Z"
 }
 ```
 

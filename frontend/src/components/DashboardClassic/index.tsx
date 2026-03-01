@@ -5,62 +5,37 @@ import {
   useNetworkStatus,
   useDisplayConfig,
   useInterval,
-  useClassicDashboard
+  useDashboardStats
 } from '../../hooks';
+import { ClassicDashboardStats } from '../../types';
 import { ErrorDisplay } from '../common/ErrorDisplay';
 import { MetricCard } from '../common/MetricCard';
-import { formatTime, calculateMockTrend } from '../../utils';
-import { REFRESH_INTERVALS } from '../../constants';
+import { formatTime } from '../../utils';
+import { API_ENDPOINTS, REFRESH_INTERVALS } from '../../constants';
 import './styles.css';
-import '../../themes.css';
 
 const DashboardClassic: React.FC = () => {
   const [currentTime, setCurrentTime] = useState(new Date());
 
-  // Check for loading parameter in URL
   const urlParams = new URLSearchParams(window.location.search);
   const forceLoading = urlParams.get('loading') === 'true';
 
-  // Custom hooks
   useKeyboardNavigation();
   const { networkStatus, error: networkError } = useNetworkStatus();
   const { displayConfig, theme } = useDisplayConfig();
-  const { 
-    stats, 
-    loading, 
-    error: statsError, 
-    refetch,
-    topMetric: topMetricData,
-    leftMetric: leftMetricData,
-    rightMetric: rightMetricData,
-    demoMode,
-    deviceIp
-  } = useClassicDashboard(displayConfig?.refresh_interval);
+  const { stats, loading, error: statsError, refetch } = useDashboardStats<ClassicDashboardStats>(
+    API_ENDPOINTS.STATS_CLASSIC,
+    displayConfig?.refresh_interval
+  );
   useTheme(theme);
 
-  // Update time every second
   useInterval(() => setCurrentTime(new Date()), REFRESH_INTERVALS.TIME);
 
-  // Memoized values
-  const deviceIP = useMemo(() => deviceIp || networkStatus?.ip || '[device-ip]', [deviceIp, networkStatus]);
+  const deviceIP = useMemo(
+    () => networkStatus?.ip || '[device-ip]',
+    [networkStatus]
+  );
 
-  // Get metrics with trends
-  const topMetric = useMemo(() => topMetricData ? {
-    ...topMetricData,
-    trend: calculateMockTrend()
-  } : null, [topMetricData]);
-
-  const leftMetric = useMemo(() => leftMetricData ? {
-    ...leftMetricData,
-    trend: calculateMockTrend()
-  } : null, [leftMetricData]);
-
-  const rightMetric = useMemo(() => rightMetricData ? {
-    ...rightMetricData,
-    trend: calculateMockTrend()
-  } : null, [rightMetricData]);
-
-  // Handle WiFi setup mode
   if (networkError === 'wifi-setup-mode') {
     return (
       <div className="dashboard-classic">
@@ -69,7 +44,6 @@ const DashboardClassic: React.FC = () => {
     );
   }
 
-  // Loading state (or forced loading for testing)
   if (loading || forceLoading) {
     return (
       <div className="dashboard-classic">
@@ -85,7 +59,6 @@ const DashboardClassic: React.FC = () => {
     );
   }
 
-  // Error state
   if (statsError) {
     return (
       <div className="dashboard-classic">
@@ -103,29 +76,26 @@ const DashboardClassic: React.FC = () => {
         </div>
 
         <div className="circular-stats">
-          {topMetric && (
+          {stats?.top && (
             <MetricCard
-              value={topMetric.value}
-              label={topMetric.label}
-              trend={topMetric.trend}
+              value={stats.top.value}
+              label={stats.top.label}
               position="top"
               size="medium"
             />
           )}
-          {leftMetric && (
+          {stats?.left && (
             <MetricCard
-              value={leftMetric.value}
-              label={leftMetric.label}
-              trend={leftMetric.trend}
+              value={stats.left.value}
+              label={stats.left.label}
               position="left"
               size="medium"
             />
           )}
-          {rightMetric && (
+          {stats?.right && (
             <MetricCard
-              value={rightMetric.value}
-              label={rightMetric.label}
-              trend={rightMetric.trend}
+              value={stats.right.value}
+              label={stats.right.label}
               position="right"
               size="medium"
             />
@@ -135,7 +105,7 @@ const DashboardClassic: React.FC = () => {
         <div className="bottom-info">
           <div className="status-indicator">
             <span className={`status-dot ${stats ? 'active' : ''}`}></span>
-            <span>{demoMode ? 'Demo Mode' : 'Live Data'}</span>
+            <span>{stats?.demo_mode ? 'Demo Mode' : 'Live Data'}</span>
           </div>
           <div className="last-updated">
             {formatTime(currentTime)} • {deviceIP}

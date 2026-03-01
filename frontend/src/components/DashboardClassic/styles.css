@@ -198,20 +198,6 @@
   animation: pulse 2s infinite;
 }
 
-@keyframes pulse {
-  0% {
-    opacity: 1;
-  }
-
-  50% {
-    opacity: 0.5;
-  }
-
-  100% {
-    opacity: 1;
-  }
-}
-
 .dashboard-classic .last-updated {
   font-size: 0.8em;
   color: var(--text-secondary);
@@ -256,16 +242,6 @@
   font-size: 1em;
   margin: 0;
   text-align: center;
-}
-
-@keyframes spin {
-  0% {
-    transform: rotate(0deg);
-  }
-
-  100% {
-    transform: rotate(360deg);
-  }
 }
 
 @keyframes rotate {

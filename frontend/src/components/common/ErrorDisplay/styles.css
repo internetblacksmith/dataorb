@@ -16,18 +16,6 @@
   animation: pulse 2s infinite;
 }
 
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-
-  50% {
-    opacity: 0.8;
-    transform: scale(1.1);
-  }
-}
-
 .error-display h2 {
   font-size: 1.8em;
   color: var(--accent);

@@ -19,7 +19,7 @@ export const OTAConfig: React.FC<OTAConfigProps> = React.memo(({
   const [updating, setUpdating] = useState(false);
   const [switchingBranch, setSwitchingBranch] = useState(false);
 
-  const handleOTAChange = (field: keyof NonNullable<DeviceConfig['ota']>, value: any) => {
+  const handleOTAChange = (field: keyof NonNullable<DeviceConfig['ota']>, value: string | boolean) => {
     onChange({
       ota: {
         ...config.ota,

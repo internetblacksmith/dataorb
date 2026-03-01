@@ -10,7 +10,6 @@ import { OTAConfig } from './OTAConfig';
 import { DeviceConfig, Theme, OTAStatus, AvailableMetric } from '../../types';
 import { API_ENDPOINTS } from '../../constants';
 import './styles.css';
-import '../../themes.css';
 
 type TabType = 'posthog' | 'display' | 'network' | 'themes' | 'updates';
 

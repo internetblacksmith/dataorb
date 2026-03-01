@@ -24,8 +24,8 @@ export const ThemeConfig: React.FC<ThemeConfigProps> = React.memo(({
   };
 
   // Separate built-in and custom themes
-  const builtInThemes = themes.filter(t => !t.isCustom && !t.custom);
-  const customThemes = themes.filter(t => t.isCustom || t.custom);
+  const builtInThemes = themes.filter(t => !t.isCustom);
+  const customThemes = themes.filter(t => t.isCustom);
 
   return (
     <div className="config-section">

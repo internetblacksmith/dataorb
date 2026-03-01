@@ -26,7 +26,7 @@ BUILT_IN_THEMES = {
             "glowSecondary": "rgba(251, 146, 60, 0.1)",
             "statusDot": "#48bb78",
         },
-        "custom": False,
+        "isCustom": False,
     },
     "light": {
         "id": "light",
@@ -49,7 +49,7 @@ BUILT_IN_THEMES = {
             "glowSecondary": "rgba(234, 88, 12, 0.05)",
             "statusDot": "#22c55e",
         },
-        "custom": False,
+        "isCustom": False,
     },
 }
 
@@ -67,7 +67,7 @@ class ThemeManager:
                 "id": theme["id"],
                 "name": theme["name"],
                 "description": theme.get("description", ""),
-                "custom": False,
+                "isCustom": False,
             })
 
         custom_themes = self.config_manager.get_custom_themes()
@@ -76,7 +76,6 @@ class ThemeManager:
                 "id": theme_id,
                 "name": theme_data.get("name", theme_id),
                 "description": theme_data.get("description", ""),
-                "custom": True,
                 "isCustom": True,
             })
 
@@ -91,7 +90,6 @@ class ThemeManager:
         if theme_id in custom_themes:
             theme = custom_themes[theme_id].copy()
             theme["id"] = theme_id
-            theme["custom"] = True
             theme["isCustom"] = True
             return theme
 
