@@ -25,7 +25,7 @@ This checklist ensures all documentation stays up-to-date with code changes.
 - [ ] Include error responses and status codes
 
 ### 3. ✅ Changing Configuration
-- [ ] Update .env.example if environment variables change
+- [ ] Update device_config.example.json if configuration keys change
 - [ ] Document in QUICK_START.md configuration section
 - [ ] Update README.md configuration section
 - [ ] Add migration notes if breaking changes
@@ -140,10 +140,10 @@ The intelligent detection system recognizes these patterns and won't flag them a
 
 ```bash
 # Sync documentation to Docsify (docs/ folder)
-./scripts/docs/sync-docs.sh
+./scripts/sync-docs.sh
 
 # Run full quality gate
-./quality-check.sh
+./scripts/quality-check.sh
 
 # Preview documentation website locally
 npx docsify serve docs
@@ -186,7 +186,7 @@ These indicate documentation is out of date:
 Before marking ANY task as complete:
 1. Review this checklist
 2. Update all affected documentation
-3. Sync documentation with `./scripts/docs/sync-docs.sh`
+3. Sync documentation with `./scripts/sync-docs.sh`
 4. Commit docs in same PR as code
 5. Verify quality gate passes
 

@@ -37,9 +37,9 @@ The project uses a React Single Page Application (SPA) for all user interfaces, 
 ### Migration from Mixed Stack
 
 Previously, the config page was embedded HTML in the Flask app. This has been migrated to:
-- `ConfigPage.tsx`: Full React component with all configuration features
-- `SetupPage.tsx`: WiFi setup and network configuration
-- `App.tsx`: Main dashboard display
+- `components/ConfigPage/`: Full React component with tabbed configuration (Display, PostHog, Network, OTA, Themes)
+- `components/SetupPage/`: WiFi setup wizard for first-boot network configuration
+- `components/DashboardRouter/`: Routes to one of four dashboard layouts (Classic, Modern, Analytics, Executive)
 
 ## Best Practices Implementation
 
@@ -55,7 +55,7 @@ Previously, the config page was embedded HTML in the Flask app. This has been mi
 - ✅ Configuration management class
 - ✅ Proper error handling with specific exceptions
 - ✅ RESTful API design
-- ✅ Environment variables for secrets
+- ✅ JSON config file for credentials (not committed to git)
 - ✅ Input validation
 - ✅ Logging instead of print statements
 - ✅ Clean separation - no HTML in Python

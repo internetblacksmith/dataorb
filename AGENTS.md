@@ -5,11 +5,11 @@ Raspberry Pi dashboard that displays PostHog analytics on a round HyperPixel LCD
 ## Build Commands
 
 ```bash
-make dev        # Start development servers (backend + frontend)
+make dev        # Print instructions for running dev servers (or use: python3 dev.py)
 make build      # Production build
 make lint       # Run all linters
 make test       # Run quality checks
-make deploy     # Deploy to Pi via Ansible
+make deploy     # Build locally and scp frontend to Pi
 ```
 
 ## Critical Rules

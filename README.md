@@ -10,7 +10,7 @@ IoT dashboard displaying PostHog analytics on a Raspberry Pi with HyperPixel Rou
 - Four dashboard layouts: Classic, Modern, Analytics, Executive
 - Theme system with dark/light modes and custom branding
 - Web-based configuration interface at `/config`
-- Auto-refresh when config changes via filesystem watcher
+- Auto-refresh when config changes via version polling
 - Ansible-automated deployment with WiFi Access Point setup
 - OTA updates with rollback support
 

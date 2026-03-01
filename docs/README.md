@@ -4,82 +4,71 @@ IoT dashboard displaying PostHog analytics on a Raspberry Pi with HyperPixel Rou
 
 **Note:** This is an independent project, not affiliated with PostHog.
 
-📚 **[View Full Documentation](https://jabawack81.github.io/pi_analytics_dashboard/)** | 🚀 **[Quick Start Guide](https://jabawack81.github.io/pi_analytics_dashboard/#/QUICK_START)**
-
 ## Features
 
 - Real-time PostHog analytics display
-- Circular UI optimized for 480x480 round display
-- Modern dark theme with circular design elements
-- Integrated Flask server (single port)
-- Auto-refresh dashboard
+- Four dashboard layouts: Classic, Modern, Analytics, Executive
+- Theme system with dark/light modes and custom branding
+- Web-based configuration interface at `/config`
+- Auto-refresh via config version polling
+- OTA updates with backup and rollback
+- WiFi Access Point mode for first-boot setup
 
 ## Hardware Requirements
 
-- **Raspberry Pi Zero W** (or Pi 3/4/5 for better performance)
-- **HyperPixel 2.1 Round Touch Display** by Pimoroni
+- **Raspberry Pi Zero 2 W** (or Pi 3/4/5 for better performance)
+- **HyperPixel 2.1 Round Touch Display** by Pimoroni (or HDMI round LCD)
 - **MicroSD Card** (8GB minimum, 16GB+ recommended)
-- **Power Supply** (5V 2.5A for Pi Zero W, more for Pi 3/4/5)
-- **Optional: 3D Printed Case** - [Download STL files from Cults3D](https://cults3d.com/en/design-collections/printminion/various-cases-for-hyperpixel-2-1-round-touch-display-by-pimoroni)
+- **Power Supply** (5V 2.5A+)
 
 ## Quick Start
 
 ### Development Mode
 ```bash
-# Start both React file watcher and Flask dev server
 python3 dev.py
 ```
 
 ### Production Build
 ```bash
-# Build and run integrated application
 ./build.sh
 cd backend
 source venv/bin/activate
 python3 app.py
 ```
 
-### Quick Production Run
-```bash
-# Automatically builds frontend and runs server
-python3 run.py
-```
-
 ## Configuration
 
-### PostHog API Configuration
-Copy `backend/.env.example` to `backend/.env` and configure with your PostHog credentials:
-```
-POSTHOG_API_KEY=your_api_key_here
-POSTHOG_PROJECT_ID=your_project_id_here
-POSTHOG_HOST=https://app.posthog.com
+### PostHog Credentials
+
+Configure via the web interface at `http://<pi-ip>/config`, or manually:
+
+```bash
+cd backend
+cp device_config.example.json device_config.json
+# Edit device_config.json with your PostHog API key and Project ID
 ```
 
 ### Device Configuration
-Device settings are stored in `backend/device_config.json`:
-- Display metrics configuration
+
+All settings are stored in `backend/device_config.json`:
+- Display metrics and layout configuration
 - OTA update settings
 - Network configuration
 - Access via web interface at `/config`
 
 ## API Endpoints
 
-- `GET /api/stats` - PostHog statistics
+See [api.md](api.md) for the full API reference. Key endpoints:
+
+- `GET /api/stats/<layout>` - Dashboard analytics (classic, modern, analytics, executive)
 - `GET /api/health` - Health check
-- `GET /` - React dashboard application
-- `GET /config` - Web configuration interface
-- OTA endpoints - see `OTA_README.md` for details
+- `GET /api/themes` - Available themes
+- `GET /api/admin/config` - Device configuration (requires auth)
+- `GET /api/admin/ota/*` - OTA management (requires auth)
 
-## Quality Gate
+## Quality Checks
 
-This project enforces strict quality standards:
 ```bash
-# Run all quality checks (required before committing)
-./quality-check.sh
+make lint    # Run all linters
+make test    # Run quality checks
 ```
-
-Quality checks include:
-- Python: Black formatting, Flake8 linting, MyPy types, pytest
-- Frontend: ESLint, Prettier, TypeScript, Jest tests
-
-The quality gate ensures all code is properly formatted, linted, and tested before commits.

@@ -1,227 +1,154 @@
-# PostHog Pi - Quick Start Guide
+# DataOrb - Quick Start Guide
 
-## 📱 Operating System Requirements
+## Operating System Requirements
 
-### **IMPORTANT: Use Raspberry Pi OS Lite!**
+### Use Raspberry Pi OS Lite
 
-Before starting, you MUST flash the correct OS image:
+Before starting, flash the correct OS image:
 
 | OS Image | Compatibility | Download |
 |----------|--------------|----------|
-| **Raspberry Pi OS Lite (32-bit)** | ✅ **RECOMMENDED** - All Pi models | [Download](https://www.raspberrypi.com/software/operating-systems/) |
-| Raspberry Pi OS Lite (64-bit) | ✅ Pi 3/4/5 only (more RAM usage) | [Download](https://www.raspberrypi.com/software/operating-systems/) |
-| ~~Raspberry Pi OS Desktop~~ | ❌ **DO NOT USE** - Will show desktop instead of dashboard | Not compatible |
+| **Raspberry Pi OS Lite (32-bit)** | All Pi models (recommended) | [Download](https://www.raspberrypi.com/software/operating-systems/) |
+| Raspberry Pi OS Lite (64-bit) | Pi 3/4/5 only (more RAM usage) | [Download](https://www.raspberrypi.com/software/operating-systems/) |
+| ~~Raspberry Pi OS Desktop~~ | **DO NOT USE** — interferes with kiosk mode | — |
 
-**Why Lite?** DataOrb creates its own minimal display server. The Desktop version interferes with kiosk mode.
+**Why Lite?** DataOrb creates its own minimal display server. The Desktop version conflicts with kiosk mode.
 
-## 🚀 Easy Installation on Fresh Raspberry Pi
+## Installation
 
-### **One-Command Installation**
+### Ansible (Recommended)
 
-After flashing **Raspberry Pi OS Lite** and first boot:
+The Ansible playbook in `ansible/` handles full provisioning — OS config, dependencies, services, kiosk mode, and OTA. See the playbook README for details.
 
-```bash
-curl -sSL https://raw.githubusercontent.com/jabawack81/pi_analytics_dashboard/main/scripts/install-pi.sh | bash
-```
-
-Or manually:
+### Manual Installation
 
 ```bash
-# Download and run installer
-wget https://raw.githubusercontent.com/jabawack81/pi_analytics_dashboard/main/scripts/install-pi.sh
-chmod +x install-pi.sh
-./install-pi.sh
+git clone https://github.com/internetblacksmith/dataorb.git
+cd dataorb
 ```
 
-### **What the installer does:**
-1. ✅ Installs system dependencies (Python, Node.js, Chromium)
-2. ✅ Clones the repository
-3. ✅ Sets up Python virtual environment
-4. ✅ Builds React frontend
-5. ✅ Creates systemd services
-6. ✅ Configures kiosk mode
-7. ✅ Sets up OTA updates
-
-## ⚙️ Configuration
-
-### **1. PostHog Credentials**
-```bash
-nano ~/posthog_pi/backend/.env
-```
-
-Add your PostHog details:
-```env
-POSTHOG_API_KEY=your_api_key_here
-POSTHOG_PROJECT_ID=your_project_id_here
-POSTHOG_HOST=https://app.posthog.com
-```
-
-### **2. Start Services**
-```bash
-sudo systemctl start posthog-display.service
-sudo systemctl status posthog-display.service
-```
-
-### **3. Access Dashboard**
-- **Dashboard**: `http://raspberry-pi-ip:5000`
-- **Configuration**: `http://raspberry-pi-ip:5000/config`
-- **In Kiosk Mode**: Press `Ctrl+Shift+C` for config
-
-## 🔧 Manual Installation (Alternative)
-
-If you prefer manual setup:
-
-### **1. Clone Repository**
-```bash
-git clone https://github.com/jabawack81/pi_analytics_dashboard.git
-cd pi_analytics_dashboard
-```
-
-### **2. Backend Setup**
+**Backend:**
 ```bash
 cd backend
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env
-# Edit .env with your PostHog credentials
 ```
 
-### **3. Frontend Setup**
+**Frontend:**
 ```bash
-cd ../frontend
+cd frontend
 npm install
 npm run build
 ```
 
-### **4. Run Application**
+**Run:**
 ```bash
-cd ../backend
+cd backend
 source venv/bin/activate
-python app.py
+python3 app.py
 ```
 
-## 📱 HyperPixel Round Display Setup
+## Configuration
 
-For the round display, run the display configuration:
+### PostHog Credentials
+
+Configure via the web interface at `http://<pi-ip>/config` (PostHog tab), or manually:
 
 ```bash
-sudo ~/posthog_pi/config/hyperpixel-setup.sh
+cd backend
+cp device_config.example.json device_config.json
+# Edit device_config.json with your PostHog API key and Project ID
+```
+
+> **Note:** The app reads credentials from `device_config.json`, not `.env` files.
+
+### Start Services
+
+On a provisioned Pi:
+```bash
+sudo systemctl start pi-analytics-backend pi-analytics-display
+sudo systemctl status pi-analytics-backend
+```
+
+### Access Dashboard
+
+- **Dashboard**: `http://<pi-ip>` (port 80 in production, 5000 in dev)
+- **Configuration**: `http://<pi-ip>/config`
+- **Kiosk shortcut**: `Ctrl+Shift+C` opens config
+
+## HyperPixel Round Display Setup
+
+```bash
+sudo ~/dataorb/config/hyperpixel-setup.sh
 sudo reboot
 ```
 
-## 🔄 OTA Updates
+## OTA Updates
 
-### **Enable OTA**
-1. Go to `http://pi-ip:5000/config`
+### Via Web UI
+1. Go to `http://<pi-ip>/config`
 2. Click "Updates" tab
-3. Enable OTA updates
-4. Select branch (main/dev/canary)
-5. Save configuration
+3. Enable OTA updates and select branch
+4. Save configuration
 
-### **Manual Updates**
+### Via API
+
+OTA endpoints require admin authentication:
 ```bash
+# Get an auth token (localhost only)
+TOKEN=$(curl -s http://localhost:5000/api/auth/token | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])")
+
 # Check for updates
-curl http://localhost:5000/api/admin/ota/check
+curl -H "Authorization: Bearer $TOKEN" http://localhost:5000/api/admin/ota/check
 
-# Update system
-curl -X POST http://localhost:5000/api/admin/ota/update
+# Apply update
+curl -X POST -H "Authorization: Bearer $TOKEN" http://localhost:5000/api/admin/ota/update
 ```
 
-## 🛠️ Troubleshooting
+## Troubleshooting
 
-### **Service Status**
+### Service Status
 ```bash
-sudo systemctl status posthog-display.service
-sudo journalctl -u posthog-display.service
+sudo systemctl status pi-analytics-backend
+sudo systemctl status pi-analytics-display
+sudo journalctl -u pi-analytics-backend --no-pager -n 50
 ```
 
-### **Check Logs**
+### Test Configuration
 ```bash
-tail -f /var/log/posthog-pi/ota.log
-```
-
-### **Test Configuration**
-```bash
-# Test PostHog connection
 curl http://localhost:5000/api/health
-curl http://localhost:5000/api/stats
+curl http://localhost:5000/api/stats/classic
 ```
 
-### **Restart Services**
+### Restart Services
 ```bash
-sudo systemctl restart posthog-display.service
+sudo systemctl restart pi-analytics-backend pi-analytics-display
 ```
-
-## 🎯 Access Points
-
-- **Dashboard**: `http://pi-ip:5000`
-- **Configuration**: `http://pi-ip:5000/config`
-- **API Health**: `http://pi-ip:5000/api/health`
-- **API Stats**: `http://pi-ip:5000/api/stats`
-
-## 🔧 Development Mode
-
-For development with file watching:
-
-```bash
-cd posthog_pi
-python dev.py
-```
-
-This starts both React dev server and Flask in debug mode.
-
-## 📋 System Requirements
-
-- Raspberry Pi 3B+ or newer
-- 8GB+ SD card
-- Internet connection
-- (Optional) HyperPixel Round display
-
-## 🆘 Support
-
-Check the following if you encounter issues:
-
-1. **Network**: Ensure Pi has internet access
-2. **PostHog**: Verify API credentials in `.env`
-3. **Services**: Check systemd service status
-4. **Logs**: Review application logs
-5. **Permissions**: Ensure correct file permissions
 
 ### Network Management
 
-For advanced network troubleshooting, use the network manager script:
-
 ```bash
-# Check network status
 python3 scripts/network-manager.py status
-
-# Scan for available WiFi networks
 python3 scripts/network-manager.py scan
-
-# Start access point mode for setup
 python3 scripts/network-manager.py start-ap
-
-# Stop access point mode
 python3 scripts/network-manager.py stop-ap
-
-# Ensure network is properly configured
-python3 scripts/network-manager.py ensure-setup
 ```
 
-The network manager handles:
-- WiFi access point setup (SSID: `Pi-Analytics-Setup`)
-- Network detection and connection
-- Fallback to AP mode when no network available
-- Automatic network transitions
+Falls back to AP mode (`Pi-Analytics-Setup`) when no network is available.
 
-## 🎉 Success!
+## Development Mode
 
-Once installed, your PostHog Pi will:
-- ✅ Auto-start on boot
-- ✅ Display analytics dashboard
-- ✅ Auto-update from Git
-- ✅ Provide web configuration
-- ✅ Run in kiosk mode
+```bash
+python3 dev.py
+```
 
-Press `Ctrl+Shift+C` in kiosk mode to access configuration!
+Starts both the React dev server and Flask in debug mode.
+
+## Success
+
+Once installed, DataOrb will:
+- Auto-start on boot
+- Display analytics dashboard in kiosk mode
+- Auto-update from Git (if OTA enabled)
+- Provide web configuration at `/config`

@@ -52,8 +52,8 @@ Since Pi 5 is much more powerful, installation is simpler:
 
 ```bash
 # Clone repository
-git clone https://github.com/jabawack81/pi_analytics_dashboard.git
-cd pi_analytics_dashboard
+git clone https://github.com/internetblacksmith/dataorb.git
+cd dataorb
 
 # Install dependencies directly (no memory issues!)
 cd frontend
@@ -121,8 +121,8 @@ sudo apt update && sudo apt upgrade -y
 sudo apt install -y git nodejs npm python3-pip python3-venv chromium-browser
 
 # Clone and setup
-git clone https://github.com/jabawack81/pi_analytics_dashboard.git
-cd pi_analytics_dashboard
+git clone https://github.com/internetblacksmith/dataorb.git
+cd dataorb
 
 # Build frontend (no memory limits needed!)
 cd frontend && npm install && npm run build && cd ..

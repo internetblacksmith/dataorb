@@ -1,6 +1,6 @@
-# PostHog Pi - Project Context & History
+# DataOrb - Project Context & History
 
-This document captures the complete context of the PostHog Pi IoT dashboard project development.
+This document captures the complete context of the DataOrb IoT dashboard project development.
 
 ## Project Overview
 
@@ -92,18 +92,18 @@ This document captures the complete context of the PostHog Pi IoT dashboard proj
 - **PostHog Integration**: Dynamic API configuration
 - **Device Monitoring**: System performance metrics
 - **API Endpoints**:
-  - `/api/stats` - PostHog analytics data
-  - `/api/config` - Display configuration
-  - `/api/admin/config` - Full device configuration
-  - `/api/admin/device/info` - System information
-  - `/api/admin/config/validate/posthog` - Connection testing
+  - `/api/stats/<layout>` - PostHog analytics per layout (classic, modern, analytics, executive)
+  - `/api/config/version` - Config hash for change detection
+  - `/api/admin/config` - Full device configuration (GET/POST/DELETE, requires auth)
+  - `/api/admin/config/validate/posthog` - Connection testing (requires auth)
+  - `/api/network/status` - Network and AP mode status
 
 ### Frontend (`/frontend`)
-- **Main Dashboard** (`App.tsx`): Circular analytics display
-- **Configuration Interface** (`ConfigPage.tsx`): Web admin panel
-- **Setup Wizard** (`SetupPage.tsx`): First-boot WiFi configuration
-- **Responsive Design**: Optimized for 480x480 round display
-- **PostHog Brand Colors**: Authentic color scheme
+- **Dashboard Router** (`components/DashboardRouter`): Routes to the active layout
+- **Dashboard Layouts**: Classic, Modern, Analytics, Executive (`components/Dashboard*`)
+- **Configuration Interface** (`components/ConfigPage`): Web admin panel
+- **Setup Wizard** (`components/SetupPage`): First-boot WiFi configuration
+- **Shared Hooks**: Generic `useDashboardStats<T>`, `useThemeData`, `useDisplayConfig`
 - **Access Methods**: Multiple ways to enter config mode
 
 ### Configuration System
@@ -122,36 +122,36 @@ This document captures the complete context of the PostHog Pi IoT dashboard proj
 ## Project Files Structure
 
 ```
-posthog_pi/
+dataorb/
 ├── backend/
 │   ├── app.py                 # Main Flask application
 │   ├── config_manager.py      # Configuration management
-│   ├── requirements.txt       # Python dependencies
-│   └── .env.example          # Environment template
-├── frontend/
-│   ├── src/
-│   │   ├── App.tsx           # Main dashboard (circular UI)
-│   │   ├── App.css           # PostHog brand styling
-│   │   ├── ConfigPage.tsx    # Web configuration interface
-│   │   ├── ConfigPage.css    # Configuration styling
-│   │   ├── SetupPage.tsx     # WiFi setup wizard
-│   │   └── SetupPage.css     # Setup wizard styling
-│   └── package.json          # Node.js dependencies
+│   ├── ota_manager.py         # OTA update operations
+│   ├── themes.py              # Built-in theme definitions
+│   └── requirements.txt       # Python dependencies
+├── frontend/src/
+│   ├── components/
+│   │   ├── DashboardRouter/   # Routes to active layout
+│   │   ├── DashboardClassic/  # Classic 3-metric layout
+│   │   ├── DashboardModern/   # Modern 6-metric layout
+│   │   ├── DashboardAnalytics/# Analytics 4-metric layout
+│   │   ├── DashboardExecutive/# Executive compass layout
+│   │   ├── ConfigPage/        # Web configuration interface
+│   │   └── SetupPage/         # WiFi setup wizard
+│   ├── hooks/                 # useDashboardStats, useThemeData, etc.
+│   ├── types/                 # TypeScript type definitions
+│   └── utils/                 # formatNumber, formatTime, etc.
 ├── config/
-│   └── hyperpixel-setup.sh   # Display hardware setup
+│   └── hyperpixel-setup.sh    # Display hardware setup
 ├── scripts/
-│   ├── start-kiosk.sh        # Kiosk mode startup
-│   ├── install-deps.sh       # Dependencies installation
-│   ├── network-manager.py    # WiFi and AP management
-│   ├── network-boot.py       # Boot-time network setup
-│   ├── install-ap-deps.sh    # Access Point dependencies
-│   └── install-network-service.sh # Network service installer
-├── build.sh                  # Build script
-├── run.py                    # Production runner
-├── dev.py                    # Development server
-├── CLAUDE.md                 # Development guidelines
-├── README.md                 # User documentation
-└── PROJECT_CONTEXT.md        # This file
+│   ├── network-manager.py     # WiFi and AP management
+│   ├── network-boot.py        # Boot-time network setup
+│   ├── boot-update.py         # OTA boot-time update check
+│   └── start-kiosk.sh         # Kiosk mode startup
+├── ansible/                   # Ansible playbook for Pi provisioning
+├── dev.py                     # Development server
+├── build.sh                   # Build script
+└── Makefile                   # All project commands
 ```
 
 ## Development Commands
@@ -208,19 +208,11 @@ python3 app.py
 - Better for Raspberry Pi constraints
 - Easier maintenance and updates
 
-## Next Steps (Future Enhancements)
+## Possible Future Enhancements
 
-### Enhanced Installation
-- One-command setup script for fresh Raspberry Pi
-- Automated hardware detection and configuration
 - Pre-built disk images for easy deployment
-
-### Advanced Features
-- Over-the-air updates
-- Multiple dashboard layouts
-- Custom metric configurations
-- Remote device management
 - Fleet management for multiple devices
+- Custom metric queries beyond the built-in set
 
 ## Technical Notes
 

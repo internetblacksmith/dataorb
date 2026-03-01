@@ -2,5 +2,5 @@
 
 * [Home](/)
 * [Quick Start](QUICK_START.md)
-* [API](README.md#api-endpoints)
-* [GitHub](https://github.com/jabawack81/posthog_pi)
+* [API](api.md)
+* [GitHub](https://github.com/internetblacksmith/dataorb)

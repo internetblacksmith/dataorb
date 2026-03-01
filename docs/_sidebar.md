@@ -3,36 +3,30 @@
 * **Getting Started**
   * [Overview](README.md)
   * [Quick Start](QUICK_START.md)
-  * [Installation](QUICK_START.md#-easy-installation-on-fresh-raspberry-pi)
+  * [Hardware & OS](hardware.md)
 
 * **Configuration**
-  * [PostHog Setup](QUICK_START.md#️-configuration)
-  * [Display Setup](QUICK_START.md#-hyperpixel-round-display-setup)
-  * [Device Config](README.md#device-configuration)
+  * [PostHog Setup](QUICK_START.md#configuration)
+  * [Display Setup](QUICK_START.md#hyperpixel-round-display-setup)
 
 * **Features**
-  * [Dashboard](README.md#features)
-  * [API Endpoints](README.md#api-endpoints)
+  * [Dashboard Layouts](README.md#features)
   * [OTA Updates](OTA_README.md)
-  * [Quality Gate](README.md#quality-gate)
+  * [Theme System](README.md#configuration)
 
 * **Development**
-  * [Development Guide](CLAUDE.md)
+  * [Architecture Decisions](ARCHITECTURE_DECISIONS.md)
   * [Project Context](PROJECT_CONTEXT.md)
   * [Documentation Guide](DOCUMENTATION_CHECKLIST.md)
-  * [Quality Standards](CLAUDE.md#quality-gate-requirements)
 
 * **API Reference**
-  * [Overview](api.md)
-  * [Stats API](README.md#api-endpoints)
+  * [Full API](api.md)
   * [OTA API](OTA_README.md#api-endpoints)
-  * [Configuration API](OTA_README.md#configuration)
 
 * **Troubleshooting**
-  * [Common Issues](QUICK_START.md#-troubleshooting)
-  * [Service Status](QUICK_START.md#service-status)
-  * [Logs](QUICK_START.md#check-logs)
+  * [Common Issues](QUICK_START.md#troubleshooting)
+  * [Pi 5 Setup](PI5_SETUP.md)
 
 * **Links**
-  * [GitHub Repository](https://github.com/jabawack81/posthog_pi)
+  * [GitHub Repository](https://github.com/internetblacksmith/dataorb)
   * [PostHog](https://posthog.com)
