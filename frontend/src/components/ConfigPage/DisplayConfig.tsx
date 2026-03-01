@@ -165,10 +165,9 @@ export const DisplayConfig: React.FC<DisplayConfigProps> = React.memo(({
         </label>
         <select
           id="refresh-interval"
-          value={config.display?.refresh_interval || 30000}
+          value={config.display?.refresh_interval || 60000}
           onChange={(e) => handleRefreshIntervalChange(Number(e.target.value))}
         >
-          <option value={30000}>30 seconds</option>
           <option value={60000}>1 minute</option>
           <option value={300000}>5 minutes</option>
           <option value={600000}>10 minutes</option>

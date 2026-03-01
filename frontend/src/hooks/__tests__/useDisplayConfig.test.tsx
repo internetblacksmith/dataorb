@@ -50,7 +50,7 @@ describe('useDisplayConfig', () => {
     expect(result.current.displayConfig).toBeDefined();
   });
 
-  it('enforces minimum 30s refresh interval', async () => {
+  it('enforces minimum 60s refresh interval', async () => {
     const mockConfig = {
       display: { theme: 'dark', layout: 'classic', refresh_interval: 5000 },
     };

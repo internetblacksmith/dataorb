@@ -1639,6 +1639,29 @@
       tags: ['wifi', 'ap', 'services']
     
     # ============================================
+    # Phase 7b: mDNS — device reachable at dataorb.local
+    # ============================================
+
+    - name: Install Avahi mDNS daemon
+      apt:
+        name:
+          - avahi-daemon
+        state: present
+      tags: ['system', 'networking']
+
+    - name: Set device hostname to dataorb
+      hostname:
+        name: dataorb
+      tags: ['system', 'networking']
+
+    - name: Enable and start Avahi daemon
+      systemd:
+        name: avahi-daemon
+        enabled: yes
+        state: started
+      tags: ['system', 'networking']
+
+    # ============================================
     # Phase 8: Final Configuration
     # ============================================
     # Final permission fixes, log directory creation, and

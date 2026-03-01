@@ -32,6 +32,11 @@ const DashboardExecutive: React.FC = () => {
 
   useInterval(() => setCurrentTime(new Date()), REFRESH_INTERVALS.TIME);
 
+  const deviceIP = useMemo(
+    () => networkStatus?.ip || '[device-ip]',
+    [networkStatus]
+  );
+
   const primaryMetrics = useMemo(() => {
     const metrics = [];
     if (stats?.north) metrics.push({ position: 'north', ...stats.north });
@@ -139,6 +144,10 @@ const DashboardExecutive: React.FC = () => {
         <div className="status-item">
           <span className="status-label">Network:</span>
           <span className="status-value">{networkStatus?.ssid || 'Unknown'}</span>
+        </div>
+        <div className="status-item">
+          <span className="status-label">IP:</span>
+          <span className="status-value">{deviceIP}</span>
         </div>
       </div>
 

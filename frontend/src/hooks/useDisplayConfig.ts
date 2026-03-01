@@ -56,7 +56,7 @@ export const useDisplayConfig = () => {
   }, []);
 
   const getRefreshInterval = useCallback((): number => {
-    // Enforce minimum 30-second interval to avoid excessive API calls
+    // Enforce minimum 60-second interval to avoid excessive API calls
     const configInterval = displayConfig?.refresh_interval || REFRESH_INTERVALS.STATS;
     return Math.max(configInterval, REFRESH_INTERVALS.STATS);
   }, [displayConfig]);

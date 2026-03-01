@@ -21,7 +21,7 @@ const DashboardAnalytics: React.FC = () => {
   const forceLoading = urlParams.get('loading') === 'true';
 
   useKeyboardNavigation();
-  const { error: networkError } = useNetworkStatus();
+  const { networkStatus, error: networkError } = useNetworkStatus();
   const { theme, refreshInterval } = useDisplayConfig();
   const { stats, loading, error: statsError, refetch } = useDashboardStats<AnalyticsDashboardStats>(
     API_ENDPOINTS.STATS_ANALYTICS,
@@ -31,6 +31,11 @@ const DashboardAnalytics: React.FC = () => {
   const themeData = useThemeData(theme);
 
   useInterval(() => setCurrentTime(new Date()), REFRESH_INTERVALS.TIME);
+
+  const deviceIP = useMemo(
+    () => networkStatus?.ip || '[device-ip]',
+    [networkStatus]
+  );
 
   const cardinalMetrics = useMemo(() => {
     const metrics = [];
@@ -143,7 +148,7 @@ const DashboardAnalytics: React.FC = () => {
             <span>{stats?.demo_mode ? 'Demo Mode' : 'Live Data'}</span>
           </div>
           <div className="last-updated">
-            {formatDate(currentTime)}
+            {formatTime(currentTime)} • {deviceIP}
           </div>
         </div>
       </div>

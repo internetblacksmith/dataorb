@@ -113,13 +113,8 @@ const SetupPage: React.FC = () => {
       const result = await connectResponse.json();
 
       if (result.success) {
-        setMessage('Connected successfully! Switching to normal mode...');
+        setMessage('Connected successfully!');
         setStep('success');
-
-        // Wait a moment then reload to switch to normal dashboard
-        setTimeout(() => {
-          window.location.href = '/';
-        }, 3000);
       } else {
         setMessage(
           'Failed to connect. Please check your password and try again.',
@@ -281,15 +276,19 @@ const SetupPage: React.FC = () => {
       <div className="setup-header">
         <div className="success-icon">✅</div>
         <h1>Setup Complete!</h1>
-        <p>Your DataOrb is now connected to the internet</p>
+        <p>Your DataOrb is connecting to <strong>{selectedNetwork}</strong></p>
       </div>
 
       <div className="success-info">
-        <p>
-          You can now configure your PostHog settings and start viewing
-          analytics.
+        <h3>Next Steps</h3>
+        <ol>
+          <li>Reconnect your phone or laptop to your home WiFi network</li>
+          <li>Visit <strong>http://dataorb.local</strong> to see your dashboard</li>
+          <li>Go to <strong>http://dataorb.local/config</strong> to configure PostHog</li>
+        </ol>
+        <p className="success-fallback">
+          If <em>dataorb.local</em> doesn't work, check your router's admin page for the device IP address.
         </p>
-        <p>Redirecting to dashboard...</p>
       </div>
     </div>
   );

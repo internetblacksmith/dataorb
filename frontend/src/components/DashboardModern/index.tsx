@@ -21,7 +21,7 @@ const DashboardModern: React.FC = () => {
   const forceLoading = urlParams.get('loading') === 'true';
 
   useKeyboardNavigation();
-  const { error: networkError } = useNetworkStatus();
+  const { networkStatus, error: networkError } = useNetworkStatus();
   const { theme, refreshInterval } = useDisplayConfig();
   const { stats, loading, error: statsError, refetch } = useDashboardStats<ModernDashboardStats>(
     API_ENDPOINTS.STATS_MODERN,
@@ -31,6 +31,11 @@ const DashboardModern: React.FC = () => {
   const themeData = useThemeData(theme);
 
   useInterval(() => setCurrentTime(new Date()), REFRESH_INTERVALS.TIME);
+
+  const deviceIP = useMemo(
+    () => networkStatus?.ip || '[device-ip]',
+    [networkStatus]
+  );
 
   const secondaryMetrics = useMemo(() => {
     const metrics = [];
@@ -143,7 +148,7 @@ const DashboardModern: React.FC = () => {
             <span>{stats?.demo_mode ? 'Demo' : 'Live'}</span>
           </div>
           <div className="last-update">
-            Updated {new Date(stats?.lastUpdated || Date.now()).toLocaleTimeString()}
+            {formatTime(currentTime)} • {deviceIP}
           </div>
         </div>
       </div>
