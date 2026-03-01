@@ -57,11 +57,14 @@ menu: ## Show interactive menu
 	@printf "$(BLUE)║$(NC) $(CYAN)Quality & Testing:$(NC)                                         $(BLUE)║$(NC)\n"
 	@printf "$(BLUE)║$(NC)   $(GREEN)11)$(NC) Run linting                                          $(BLUE)║$(NC)\n"
 	@printf "$(BLUE)║$(NC)   $(GREEN)12)$(NC) Auto-format code                                     $(BLUE)║$(NC)\n"
-	@printf "$(BLUE)║$(NC)   $(GREEN)13)$(NC) Run tests                                            $(BLUE)║$(NC)\n"
+	@printf "$(BLUE)║$(NC)   $(GREEN)13)$(NC) Run tests (backend + frontend + lint)                 $(BLUE)║$(NC)\n"
+	@printf "$(BLUE)║$(NC)   $(GREEN)14)$(NC) Run backend tests only                               $(BLUE)║$(NC)\n"
+	@printf "$(BLUE)║$(NC)   $(GREEN)15)$(NC) Run frontend tests only                              $(BLUE)║$(NC)\n"
+	@printf "$(BLUE)║$(NC)   $(GREEN)16)$(NC) Run E2E tests (Playwright)                           $(BLUE)║$(NC)\n"
 	@printf "$(BLUE)║$(NC)                                                             $(BLUE)║$(NC)\n"
 	@printf "$(BLUE)║$(NC) $(CYAN)Other:$(NC)                                                     $(BLUE)║$(NC)\n"
-	@printf "$(BLUE)║$(NC)   $(GREEN)14)$(NC) Show all make targets                                $(BLUE)║$(NC)\n"
-	@printf "$(BLUE)║$(NC)   $(GREEN)15)$(NC) Clean everything                                     $(BLUE)║$(NC)\n"
+	@printf "$(BLUE)║$(NC)   $(GREEN)17)$(NC) Show all make targets                                $(BLUE)║$(NC)\n"
+	@printf "$(BLUE)║$(NC)   $(GREEN)18)$(NC) Clean everything                                     $(BLUE)║$(NC)\n"
 	@printf "$(BLUE)║$(NC)   $(GREEN)q)$(NC) Quit                                                  $(BLUE)║$(NC)\n"
 	@printf "$(BLUE)║$(NC)                                                             $(BLUE)║$(NC)\n"
 	@printf "$(BLUE)╚══════════════════════════════════════════════════════════════╝$(NC)\n"
@@ -84,8 +87,11 @@ menu: ## Show interactive menu
 		11) $(MAKE) lint ;; \
 		12) $(MAKE) format ;; \
 		13) $(MAKE) test ;; \
-		14) $(MAKE) help ;; \
-		15) $(MAKE) clean ;; \
+		14) $(MAKE) test-backend ;; \
+		15) $(MAKE) test-frontend ;; \
+		16) $(MAKE) test-e2e ;; \
+		17) $(MAKE) help ;; \
+		18) $(MAKE) clean ;; \
 		q|Q) echo "Goodbye!" ;; \
 		*) echo "Invalid choice. Please run 'make menu' again." ;; \
 	esac
@@ -268,12 +274,25 @@ start-services: ## Start all systemd services
 # =============================================================================
 
 .PHONY: test
-test: test-backend lint ## Run all tests and linting
+test: test-backend test-frontend lint ## Run all tests and linting
+
+.PHONY: test-all
+test-all: test-backend test-frontend test-e2e lint ## Run all tests including E2E
 
 .PHONY: test-backend
 test-backend: ## Run backend tests
 	@echo -e "$(YELLOW)Running backend tests...$(NC)"
 	@cd backend && . venv/bin/activate && python -m pytest tests/ -v || echo "  No tests found"
+
+.PHONY: test-frontend
+test-frontend: ## Run frontend tests
+	@echo -e "$(YELLOW)Running frontend tests...$(NC)"
+	@cd frontend && npx react-scripts test --watchAll=false --passWithNoTests
+
+.PHONY: test-e2e
+test-e2e: ## Run E2E Playwright tests (requires built frontend + running server)
+	@echo -e "$(YELLOW)Running E2E tests...$(NC)"
+	@cd e2e && npx playwright test
 
 .PHONY: lint
 lint: lint-frontend lint-backend ## Run linting on frontend and backend
