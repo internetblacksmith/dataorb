@@ -135,7 +135,7 @@ python3 scripts/network-manager.py start-ap
 python3 scripts/network-manager.py stop-ap
 ```
 
-Falls back to AP mode (`Pi-Analytics-Setup`) when no network is available.
+Falls back to AP mode (`DataOrb-Setup`) when no network is available.
 
 ## Development Mode
 

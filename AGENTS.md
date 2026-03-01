@@ -24,6 +24,7 @@ make deploy     # Build locally and scp frontend to Pi
 
 | Topic | Guide |
 |-------|-------|
+| User Guide | [docs/USAGE.md](docs/USAGE.md) |
 | Quick Start | [docs/QUICK_START.md](docs/QUICK_START.md) |
 | Architecture Decisions | [docs/ARCHITECTURE_DECISIONS.md](docs/ARCHITECTURE_DECISIONS.md) |
 | Pi 5 Setup | [docs/PI5_SETUP.md](docs/PI5_SETUP.md) |

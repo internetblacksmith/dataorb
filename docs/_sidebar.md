@@ -2,6 +2,7 @@
 
 * **Getting Started**
   * [Overview](README.md)
+  * [User Guide](USAGE.md)
   * [Quick Start](QUICK_START.md)
   * [Hardware & OS](hardware.md)
 

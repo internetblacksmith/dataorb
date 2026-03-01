@@ -78,6 +78,7 @@ Access via the web interface at `/config`.
 
 | Topic | Guide |
 |-------|-------|
+| User Guide | [docs/USAGE.md](docs/USAGE.md) |
 | API Reference | [docs/api.md](docs/api.md) |
 | Architecture | [docs/ARCHITECTURE_DECISIONS.md](docs/ARCHITECTURE_DECISIONS.md) |
 | Hardware & OS | [docs/hardware.md](docs/hardware.md) |
