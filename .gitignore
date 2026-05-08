@@ -66,3 +66,4 @@ temp_debug/
 
 # Don't ignore docs folder (Docsify)
 !docs/
+.gstack/
